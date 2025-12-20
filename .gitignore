@@ -1,0 +1,3 @@
+.env
+.env.*
+db/user_uploads/
