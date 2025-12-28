@@ -10,6 +10,7 @@
 const express = require("express");
 const path = require("path");
 const authRoutes = require("./authRoutes");
+const roomRoutes = require('./roomRoutes');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.get("/api/health", (req, res) => {
 
 // --- API ---
 app.use("/api/auth", authRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // --- Uploads (öffentlich), aber NICHT /db komplett! ---
 app.use("/user_uploads", express.static(UPLOADS_DIR));
