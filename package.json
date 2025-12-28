@@ -18,7 +18,8 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "redis": "^5.10.0",
-    "use": "^3.1.1"
+    "use": "^3.1.1",
+    "uuidv4": "^6.2.13"
   },
   "devDependencies": {
     "supertest": "^7.1.4"
