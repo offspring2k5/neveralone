@@ -1,116 +1,73 @@
 /**
  * be/usersStore.js
- *
- * Minimaler JSON-"Datastore" für den Prototyp.
- * Statt einer echten DB (Postgres/Mongo) speichern wir Users in einer Datei.
- *
- * Vorteile:
- * - super simpel für FR4/FR5 (Register/Login) und Persistenz über Server-Restart
- * - keine zusätzliche Infrastruktur nötig
- *
- * Nachteile:
- * - keine gleichzeitigen Writes (Race Conditions) -> für Uni-Prototyp ok
- * - nicht skalierbar für Produktion
- *
- * ENV:
- * - USERS_DB_PATH: optionaler Pfad für die User-DB (Tests / andere Umgebungen)
+ * Redis-based User Persistence
  */
+const client = require('./redisClient');
 
-const fs = require("fs/promises");
-const path = require("path");
-
-const DB_PATH = process.env.USERS_DB_PATH
-    ? process.env.USERS_DB_PATH
-    : path.join(__dirname, "..", "db", "users.json");
+// Helper to format keys
+const keyUser = (id) => `user:${id}`;
+const keyEmail = (email) => `email:${email.toLowerCase().trim()}`;
 
 /**
- * Stellt sicher, dass:
- * - der Ordner existiert
- * - die DB-Datei existiert
- *
- * Wenn nicht vorhanden: wird eine leere Struktur { users: [] } angelegt.
- */
-async function ensureDbFile() {
-    await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-
-    try {
-        await fs.stat(DB_PATH);
-    } catch (err) {
-        if (err.code === "ENOENT") {
-            await fs.writeFile(DB_PATH, JSON.stringify({ users: [] }, null, 2), "utf8");
-        } else {
-            // keine stillen Fehler, sonst wirkt es wie "random resets"
-            throw err;
-        }
-    }
-}
-
-/**
- * Liest die gesamte DB-Datei und liefert ein JS-Objekt:
- * { users: [...] }
- */
-async function readDb() {
-    await ensureDbFile();
-    const raw = await fs.readFile(DB_PATH, "utf8");
-
-    // Wenn JSON mal kaputt wäre, soll es krachen -> einfacher zu debuggen
-    return JSON.parse(raw);
-}
-
-/**
- * Schreibt die DB atomar:
- * - erst in eine temp Datei schreiben
- * - dann rename() (atomic auf den meisten Filesystemen)
- *
- * Damit vermeiden wir kaputte JSON-Dateien bei Crash während write.
- */
-async function writeDb(db) {
-    const tmpPath = `${DB_PATH}.tmp`;
-    const payload = JSON.stringify(db, null, 2);
-
-    await fs.writeFile(tmpPath, payload, "utf8");
-    await fs.rename(tmpPath, DB_PATH);
-}
-
-/**
- * Findet User anhand E-Mail (case-insensitive).
- * Gibt User-Objekt oder null zurück.
+ * Find user ID by email, then fetch the user object.
  */
 async function findUserByEmail(email) {
-    if (typeof email !== "string" || !email.trim()) return null;
+    if (!email) return null;
 
-    const db = await readDb();
-    const target = email.trim().toLowerCase();
+    // 1. Get ID from Email Index
+    const id = await client.get(keyEmail(email));
+    if (!id) return null;
 
-    return db.users.find((u) => String(u.email).toLowerCase() === target) || null;
+    // 2. Get User Data
+    return findUserById(id);
 }
 
 /**
- * Findet User anhand ID.
- * Gibt User-Objekt oder null zurück.
+ * Find User by ID directly.
  */
 async function findUserById(id) {
-    if (typeof id !== "string" || !id.trim()) return null;
+    if (!id) return null;
 
-    const db = await readDb();
-    return db.users.find((u) => u.id === id) || null;
+    const data = await client.get(keyUser(id));
+    return data ? JSON.parse(data) : null;
 }
 
 /**
- * Fügt einen neuen User in die DB ein.
- * Erwartet ein bereits "fertiges" User-Objekt (id, email, passwordHash,...).
+ * Create a new user.
+ * Saves both the user object and the email->id mapping.
  */
 async function createUser(user) {
-    const db = await readDb();
-    db.users.push(user);
-    await writeDb(db);
+    const { id, email } = user;
+    const userString = JSON.stringify(user);
+
+    // Use a transaction (multi) to ensure both keys are written
+    await client.multi()
+        .set(keyUser(id), userString)
+        .set(keyEmail(email), id)
+        .exec();
+
     return user;
 }
 
+/**
+ * Helper to update specific fields of a user (replaces readDb/writeDb logic).
+ */
+async function updateUser(id, partialUpdates) {
+    const user = await findUserById(id);
+    if (!user) throw new Error("User not found");
+
+    const updatedUser = { ...user, ...partialUpdates };
+
+    // Save back to Redis
+    await client.set(keyUser(id), JSON.stringify(updatedUser));
+
+    return updatedUser;
+}
+
+// Note: readDb/writeDb are removed as they are not efficient for Redis
 module.exports = {
-    readDb,
-    writeDb,
     findUserByEmail,
     findUserById,
     createUser,
+    updateUser
 };

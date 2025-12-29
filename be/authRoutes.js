@@ -19,10 +19,10 @@ const fs = require("fs");
 const multer = require("multer");
 
 const {
-    readDb,
-    writeDb,
     findUserByEmail,
     findUserById,
+    createUser,   // <--- Added this to exports in usersStore
+    updateUser    // <--- Added this to exports in usersStore
 } = require("./usersStore");
 
 const router = express.Router();
@@ -97,11 +97,12 @@ router.post("/register", async (req, res) => {
             avatarUrl: null,
         };
 
-        // Persist
+        /** Persist old
         const db = await readDb();
         db.users.push(user);
         await writeDb(db);
-
+        **/
+        await createUser(user);
         return res.status(201).json({
             ok: true,
             user: { id: user.id, email: user.email, displayName: user.displayName },
@@ -176,25 +177,26 @@ router.get("/me", requireAuth, async (req, res) => {
  * -------------------------- */
 router.patch("/profile", requireAuth, async (req, res) => {
     try {
-        const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim() : "";
+        const displayName = (req.body?.displayName || "").trim();
         if (displayName.length < 2 || displayName.length > 30) {
             return res.status(400).json({ ok: false, error: "Name muss 2–30 Zeichen haben." });
         }
 
-        const db = await readDb();
-        const user = db.users.find(u => u.id === req.jwt.sub);
-        if (!user) return res.status(401).json({ ok: false, error: "User nicht gefunden" });
+        // Use updateUser (Redis) instead of reading the whole DB
+        const user = await updateUser(req.jwt.sub, { displayName });
 
-        user.displayName = displayName;
-        await writeDb(db);
-
-        return res.json({
+        res.json({
             ok: true,
-            user: { id: user.id, email: user.email, displayName: user.displayName, avatarUrl: user.avatarUrl ?? null },
+            user: {
+                id: user.id,
+                email: user.email,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl ?? null
+            },
         });
     } catch (err) {
-        console.error("PROFILE PATCH ERROR:", err);
-        return res.status(500).json({ ok: false, error: "Serverfehler" });
+        console.error(err);
+        res.status(500).json({ ok: false, error: "Serverfehler" });
     }
 });
 
@@ -246,17 +248,19 @@ function uploadAvatar(req, res, next) {
 
 router.post("/avatar", requireAuth, uploadAvatar, async (req, res) => {
     try {
-        const db = await readDb();
-        const user = db.users.find(u => u.id === req.jwt.sub);
-        if (!user) return res.status(401).json({ ok: false, error: "User nicht gefunden" });
+        // Construct public URL
+        const avatarUrl = `/user_uploads/avatars/${req.file.filename}`;
 
-        user.avatarUrl = `/user_uploads/avatars/${req.file.filename}`;
-        await writeDb(db);
+        // Save URL to Redis
+        const user = await updateUser(req.jwt.sub, { avatarUrl });
 
-        return res.json({ ok: true, user: { avatarUrl: user.avatarUrl } });
+        res.json({
+            ok: true,
+            user: { avatarUrl: user.avatarUrl }
+        });
     } catch (err) {
-        console.error("AVATAR ERROR:", err);
-        return res.status(500).json({ ok: false, error: "Serverfehler" });
+        console.error(err);
+        res.status(500).json({ ok: false, error: "Serverfehler" });
     }
 });
 
