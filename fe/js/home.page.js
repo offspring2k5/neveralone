@@ -14,11 +14,15 @@
  * Home Screen + Room Creation/Joining Logic
  */
 
+/**
+ * fe/home.page.js
+ * Home Screen + Room Creation/Joining Logic
+ */
+
 import { me, getToken, clearToken } from "./auth.js";
-import { postJson } from "./api.js"; // <--- Added import
+import { postJson } from "./api.js";
 import { loadRoomPage } from "./room.page.js";
 
-// We export this function so room.page.js can call it when the user leaves a room
 export async function loadHomePage() {
     const app = document.getElementById('app');
 
@@ -42,10 +46,12 @@ export async function loadHomePage() {
                 </div>
                 <div class="row">
                     <div class="pill" id="pointPill">⭐ ...</div>
+                    
                     <a href="/user.profile.html" class="avatarLink" style="text-decoration: none;">
                         <img id="userAvatarImg" style="display:none">
                         <span id="userAvatarFallback" style="display:none">?</span>
                     </a>
+
                     <button id="logoutBtn" class="btn logout" style="padding: 8px 12px;">Logout</button>
                 </div>
             </div>
@@ -77,6 +83,7 @@ export async function loadHomePage() {
                 <div class="card">
                     <div class="profileHeader">
                         <div class="avatarBox">
+                            <img id="bigAvatarImg" style="display:none">
                             <span id="bigAvatarFallback" class="avatarInitial">?</span>
                         </div>
                         <div class="profileMeta">
@@ -129,40 +136,57 @@ export async function loadHomePage() {
         </div>
     `;
 
-    // 3. User Data Loading & Event Binding
     await bindEventsAndLoadUser();
 }
 
 async function bindEventsAndLoadUser() {
     const pointPill = document.getElementById("pointPill");
+
+    // Small Topbar Elements
     const userAvatarImg = document.getElementById("userAvatarImg");
     const userAvatarFallback = document.getElementById("userAvatarFallback");
+
+    // Big Profile Elements
+    const bigAvatarImg = document.getElementById("bigAvatarImg"); // <--- Selected new img
     const bigAvatarFallback = document.getElementById("bigAvatarFallback");
+
     const userNameDisplay = document.getElementById("userNameDisplay");
     const userEmailDisplay = document.getElementById("userEmailDisplay");
 
+    // --- Load User Data ---
     try {
         const data = await me();
         const u = data.user || {};
 
-        // Fill Data
+        // 1. Text Data
         userNameDisplay.textContent = u.displayName || "User";
         userEmailDisplay.textContent = u.email || "";
         pointPill.textContent = `⭐ ${u.points ?? 0}`;
 
-        // Avatar Logic
+        // 2. Avatar Fallback Initials
         const initial = (u.displayName?.[0] || u.email?.[0] || "?").toUpperCase();
         userAvatarFallback.textContent = initial;
         bigAvatarFallback.textContent = initial;
 
+        // 3. Avatar Image Logic
         if (u.avatarUrl) {
+            // -- Small Topbar Avatar --
             userAvatarImg.src = u.avatarUrl;
             userAvatarImg.onload = () => {
                 userAvatarImg.style.display = "block";
                 userAvatarFallback.style.display = "none";
             };
+
+            // -- Big Profile Card Avatar --
+            bigAvatarImg.src = u.avatarUrl;
+            bigAvatarImg.onload = () => {
+                bigAvatarImg.style.display = "block";
+                bigAvatarFallback.style.display = "none";
+            };
         } else {
+            // No Avatar -> Show Fallbacks
             userAvatarFallback.style.display = "block";
+            bigAvatarFallback.style.display = "block";
         }
 
     } catch (err) {
@@ -175,18 +199,15 @@ async function bindEventsAndLoadUser() {
 
     // --- Event Listeners ---
 
-    // Logout
     document.getElementById("logoutBtn").onclick = () => {
         clearToken();
         window.location.replace("/index.html");
     };
 
-    // Modal Logic
     const modal = document.getElementById('createModal');
     const openBtn = document.getElementById('btnOpenModal');
     const cancelBtn = document.getElementById('btnCancel');
 
-    // Safety check in case elements aren't found
     if(openBtn) openBtn.onclick = () => modal.classList.add('open');
     if(cancelBtn) cancelBtn.onclick = () => modal.classList.remove('open');
 
@@ -194,7 +215,7 @@ async function bindEventsAndLoadUser() {
     const token = getToken();
     const headers = { 'Authorization': `Bearer ${token}` };
 
-    // 1. CREATE ROOM
+    // Create Room
     const createBtn = document.getElementById('btnCreateConfirm');
     if(createBtn) {
         createBtn.onclick = async () => {
@@ -203,12 +224,10 @@ async function bindEventsAndLoadUser() {
             const theme = document.getElementById('confTheme').value;
 
             try {
-                // Using postJson handles JSON stringify and errors
                 const data = await postJson('/api/rooms/create', { task, time, theme }, headers);
-
                 if (data.success) {
                     modal.classList.remove('open');
-                    loadRoomPage(data); // Switch view
+                    loadRoomPage(data);
                 }
             } catch (e) {
                 console.error(e);
@@ -217,7 +236,7 @@ async function bindEventsAndLoadUser() {
         };
     }
 
-    // 2. JOIN ROOM
+    // Join Room
     const joinBtn = document.getElementById('btnJoin');
     if(joinBtn) {
         joinBtn.onclick = async () => {
@@ -227,20 +246,17 @@ async function bindEventsAndLoadUser() {
 
             try {
                 const data = await postJson('/api/rooms/join', { code, task }, headers);
-
                 if (data.success) {
-                    loadRoomPage(data); // Switch view
+                    loadRoomPage(data);
                 }
             } catch (e) {
                 console.error(e);
-                // api.js extracts the error message from the backend response automatically
                 alert(e.message || "Room not found or Connection Failed");
             }
         };
     }
 }
 
-// Start the page immediately on first load
 loadHomePage();
 
 /** 
