@@ -24,18 +24,3 @@ services:
       - redis
     command: sh -c "npm install && node --watch --env-file=.env be/server.js"
 
-  # --- NEW: Dedicated Test Runner ---
-  tests:
-    image: node:22-alpine
-    working_dir: /usr/src/app
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=testpasswort123456
-    volumes:
-      - ./:/usr/src/app
-      - /usr/src/app/node_modules
-    depends_on:
-      - redis
-    # 1. Install dependencies
-    # 2. Run the tests (using 'npm test')
-    command: sh -c "npm install && npm test"
