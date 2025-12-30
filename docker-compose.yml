@@ -1,25 +1,21 @@
 
-
 services:
   redis:
     image: redis:alpine
     container_name: neveralone_redis
     command: redis-server --appendonly yes
-    ports:
-      - "6379:6379"
-    volumes:
-      - ./redis_data:/data
+    ports: ["6379:6379"]
+    volumes: ["./redis_data:/data"]
 
   app:
     image: node:22-alpine
     container_name: neveralone_backend
     working_dir: /usr/src/app
-    ports:
-      - "3000:3000"
+    ports: ["3000:3000"]
     environment:
       - REDIS_URL=redis://redis:6379
       - PORT=3000
-      - HOST=0.0.0.0  # <--- ADD THIS LINE
+      - HOST=0.0.0.0
       - JWT_SECRET=testpasswort123456
     volumes:
       - ./:/usr/src/app
@@ -27,3 +23,4 @@ services:
     depends_on:
       - redis
     command: sh -c "npm install && node --watch --env-file=.env be/server.js"
+

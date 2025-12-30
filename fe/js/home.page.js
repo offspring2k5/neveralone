@@ -9,15 +9,26 @@
  * Home Screen + Room Creation/Joining Logic
  */
 
-import { me, getToken, clearToken } from "./auth.js";
-import { loadRoomPage } from "./room.page.js"; 
+/**
+ * fe/home.page.js
+ * Home Screen + Room Creation/Joining Logic
+ */
 
-// We export this function so room.page.js can call it when the user leaves a room
+/**
+ * fe/home.page.js
+ * Home Screen + Room Creation/Joining Logic
+ */
+
+import { me, getToken, clearToken } from "./auth.js";
+import { postJson } from "./api.js";
+import { loadRoomPage } from "./room.page.js";
+
 export async function loadHomePage() {
     const app = document.getElementById('app');
-    
+
     // 1. Auth Check
-    if (!getToken()) {
+    const token = getToken();
+    if (!token) {
         window.location.replace("/index.html");
         return;
     }
@@ -35,10 +46,12 @@ export async function loadHomePage() {
                 </div>
                 <div class="row">
                     <div class="pill" id="pointPill">⭐ ...</div>
-                    <div class="avatarLink">
+                    
+                    <a href="/user.profile.html" class="avatarLink" style="text-decoration: none;">
                         <img id="userAvatarImg" style="display:none">
                         <span id="userAvatarFallback" style="display:none">?</span>
-                    </div>
+                    </a>
+
                     <button id="logoutBtn" class="btn logout" style="padding: 8px 12px;">Logout</button>
                 </div>
             </div>
@@ -49,15 +62,15 @@ export async function loadHomePage() {
                 
                 <div style="display:grid; gap:var(--gap); align-content:start;">
                     
-            <div class="card">
-                <h2>Join a Session</h2>
-                <p class="muted" style="margin-bottom:14px;">Enter a code and your goal.</p>
-                <div class="form">
-                    <input type="text" id="joinCodeInput" placeholder="Room Code (e.g. A1B2)">
-                    <input type="text" id="joinTaskInput" placeholder="My Task (e.g. Reading)">
-                    <button id="btnJoin" class="btn primary">Join Room</button>
-                </div>
-            </div>
+                    <div class="card">
+                        <h2>Join a Session</h2>
+                        <p class="muted" style="margin-bottom:14px;">Enter a code and your goal.</p>
+                        <div class="form">
+                            <input type="text" id="joinCodeInput" placeholder="Room Code (e.g. A1B2)">
+                            <input type="text" id="joinTaskInput" placeholder="My Task (e.g. Reading)">
+                            <button id="btnJoin" class="btn primary">Join Room</button>
+                        </div>
+                    </div>
 
                     <div class="card" style="background: linear-gradient(135deg, rgba(122,167,255,.1), rgba(101,240,199,.05)); border-color:var(--accent);">
                         <h2>Start New Session</h2>
@@ -70,6 +83,7 @@ export async function loadHomePage() {
                 <div class="card">
                     <div class="profileHeader">
                         <div class="avatarBox">
+                            <img id="bigAvatarImg" style="display:none">
                             <span id="bigAvatarFallback" class="avatarInitial">?</span>
                         </div>
                         <div class="profileMeta">
@@ -122,40 +136,57 @@ export async function loadHomePage() {
         </div>
     `;
 
-    // 3. User Data Loading & Event Binding
     await bindEventsAndLoadUser();
 }
 
 async function bindEventsAndLoadUser() {
     const pointPill = document.getElementById("pointPill");
+
+    // Small Topbar Elements
     const userAvatarImg = document.getElementById("userAvatarImg");
     const userAvatarFallback = document.getElementById("userAvatarFallback");
+
+    // Big Profile Elements
+    const bigAvatarImg = document.getElementById("bigAvatarImg"); // <--- Selected new img
     const bigAvatarFallback = document.getElementById("bigAvatarFallback");
+
     const userNameDisplay = document.getElementById("userNameDisplay");
     const userEmailDisplay = document.getElementById("userEmailDisplay");
 
+    // --- Load User Data ---
     try {
         const data = await me();
         const u = data.user || {};
 
-        // Fill Data
+        // 1. Text Data
         userNameDisplay.textContent = u.displayName || "User";
         userEmailDisplay.textContent = u.email || "";
         pointPill.textContent = `⭐ ${u.points ?? 0}`;
-        
-        // Avatar Logic
+
+        // 2. Avatar Fallback Initials
         const initial = (u.displayName?.[0] || u.email?.[0] || "?").toUpperCase();
         userAvatarFallback.textContent = initial;
         bigAvatarFallback.textContent = initial;
 
+        // 3. Avatar Image Logic
         if (u.avatarUrl) {
+            // -- Small Topbar Avatar --
             userAvatarImg.src = u.avatarUrl;
             userAvatarImg.onload = () => {
                 userAvatarImg.style.display = "block";
                 userAvatarFallback.style.display = "none";
             };
+
+            // -- Big Profile Card Avatar --
+            bigAvatarImg.src = u.avatarUrl;
+            bigAvatarImg.onload = () => {
+                bigAvatarImg.style.display = "block";
+                bigAvatarFallback.style.display = "none";
+            };
         } else {
+            // No Avatar -> Show Fallbacks
             userAvatarFallback.style.display = "block";
+            bigAvatarFallback.style.display = "block";
         }
 
     } catch (err) {
@@ -168,25 +199,23 @@ async function bindEventsAndLoadUser() {
 
     // --- Event Listeners ---
 
-    // Logout
     document.getElementById("logoutBtn").onclick = () => {
         clearToken();
         window.location.replace("/index.html");
     };
 
-    // Modal Logic
     const modal = document.getElementById('createModal');
     const openBtn = document.getElementById('btnOpenModal');
     const cancelBtn = document.getElementById('btnCancel');
-    
-    // Safety check in case elements aren't found
+
     if(openBtn) openBtn.onclick = () => modal.classList.add('open');
     if(cancelBtn) cancelBtn.onclick = () => modal.classList.remove('open');
 
     // --- API ACTIONS ---
     const token = getToken();
+    const headers = { 'Authorization': `Bearer ${token}` };
 
-    // 1. CREATE ROOM
+    // Create Room
     const createBtn = document.getElementById('btnCreateConfirm');
     if(createBtn) {
         createBtn.onclick = async () => {
@@ -195,63 +224,39 @@ async function bindEventsAndLoadUser() {
             const theme = document.getElementById('confTheme').value;
 
             try {
-                const res = await fetch('/api/rooms/create', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` 
-                    },
-                    body: JSON.stringify({ task, time, theme })
-                });
-
-                const data = await res.json();
+                const data = await postJson('/api/rooms/create', { task, time, theme }, headers);
                 if (data.success) {
                     modal.classList.remove('open');
-                    loadRoomPage(data); // Switch view
-                } else {
-                    alert("Error: " + (data.error || "Unknown"));
+                    loadRoomPage(data);
                 }
             } catch (e) {
                 console.error(e);
-                alert("Connection Failed");
+                alert(e.message || "Connection Failed");
             }
         };
     }
 
-    // 2. JOIN ROOM
+    // Join Room
     const joinBtn = document.getElementById('btnJoin');
     if(joinBtn) {
         joinBtn.onclick = async () => {
             const code = document.getElementById('joinCodeInput').value;
-            const task = document.getElementById('joinTaskInput').value || "Collaborating"; 
+            const task = document.getElementById('joinTaskInput').value || "Collaborating";
             if(!code) return alert("Please enter a code");
 
             try {
-                const res = await fetch('/api/rooms/join', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` 
-                    },
-                    // Send Code AND Task
-                    body: JSON.stringify({ code, task }) 
-                });
-
-                const data = await res.json();
+                const data = await postJson('/api/rooms/join', { code, task }, headers);
                 if (data.success) {
-                    loadRoomPage(data); // Switch view
-                } else {
-                    alert("Error: " + (data.error || "Room not found"));
+                    loadRoomPage(data);
                 }
             } catch (e) {
                 console.error(e);
-                alert("Connection Failed");
+                alert(e.message || "Room not found or Connection Failed");
             }
         };
     }
 }
 
-// Start the page immediately on first load
 loadHomePage();
 
 /** 
