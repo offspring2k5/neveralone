@@ -355,3 +355,275 @@ input[type="file"]{
 @media (prefers-reduced-motion: reduce){
     .btn{ transition: none; }
 }
+
+
+
+/* --- APPEND TO styles.css --- */
+
+/* Form Selects (Matches your existing input style) */
+select {
+    width: 100%;
+    padding: 12px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: rgba(10,16,32,.60);
+    color: var(--text);
+    outline: none;
+    appearance: none; /* Removes default OS arrow */
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%237aa7ff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px top 50%;
+    background-size: 12px auto;
+    cursor: pointer;
+}
+select:focus {
+    border-color: rgba(122,167,255,.65);
+    box-shadow: var(--ring);
+}
+
+/* Modal / Popup Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0, 5, 15, 0.85); /* Darker backdrop */
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    display: none; /* Hidden by default */
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.modal-overlay.open {
+    display: flex;
+    opacity: 1;
+}
+
+/* Modal Content - Inherits from .card but centered */
+.modal-box {
+    width: 90%;
+    max-width: 420px;
+    background: var(--bg2); /* Solid background for legibility */
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    transform: translateY(20px);
+    transition: transform 0.2s ease;
+}
+
+.modal-overlay.open .modal-box {
+    transform: translateY(0);
+}
+
+/* Room View Styles */
+.room-container {
+    text-align: center;
+    padding-top: 40px;
+    animation: fadeIn 0.5s ease;
+}
+
+.room-code-badge {
+    display: inline-block;
+    background: rgba(0,0,0,0.3);
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    font-family: monospace;
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    color: var(--accent2);
+    margin-top: 10px;
+}
+
+.timer-display {
+    font-size: 5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    margin: 30px 0;
+    text-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.task-focus {
+    font-size: 1.5rem;
+    color: var(--text);
+    margin-bottom: 40px;
+}
+
+/* --- THEMES (Overrides Body Background) --- */
+
+/* Forest Theme */
+body.theme-forest {
+    background: 
+        radial-gradient(circle at 50% 0%, rgba(101, 240, 199, 0.15), transparent 60%),
+        linear-gradient(180deg, #132a13 0%, #061206 100%);
+}
+body.theme-forest .timer-display { color: #84fab0; }
+
+/* Space Theme */
+body.theme-space {
+    background: 
+        radial-gradient(circle at 80% 20%, rgba(189, 116, 255, 0.2), transparent 50%),
+        linear-gradient(180deg, #1a0b2e 0%, #090312 100%);
+}
+body.theme-space .timer-display { color: #d4a7ff; }
+
+/* Cozy Theme (Default-ish warm) */
+body.theme-cozy {
+    background: 
+        radial-gradient(circle at 20% 20%, rgba(255, 175, 123, 0.15), transparent 60%),
+        linear-gradient(180deg, #2e1a15 0%, #120705 100%);
+}
+body.theme-cozy .timer-display { color: #ffaf7b; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================================= */
+/* VIRTUAL ROOM ADDITIONS (Append this)    */
+/* ========================================= */
+
+/* 1. The Main Room Container */
+/* This forces the room to cover your blue dashboard background */
+.room-scene {
+    position: fixed;       /* Sit on top of everything */
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;           /* Higher than normal content */
+    
+    background-color: #1a1a1a; /* Fallback color if image fails */
+    background-size: cover;
+    background-position: center;
+    
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    animation: fadeIn 0.8s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 2. The Theme Images */
+/* These map to the values in your dropdown: "cozy", "forest", "space" */
+
+body.theme-cozy .room-scene {
+    background-image: url('https://images.unsplash.com/photo-1670996324046-f489f28de4e4?w=1600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8ZmlyZXBsYWNlJTIwcm9vbXxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop'); 
+}
+
+body.theme-forest .room-scene {
+    background-image: url('https://images.unsplash.com/photo-1701156853677-67182eaa0fa8?w=1600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8Zm9yZXN0JTIwcm9vbXxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop');
+}
+
+body.theme-space .room-scene {
+    background-image: url('https://images.unsplash.com/photo-1465101162946-4377e57745c3?w=1600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8b3V0ZXIlMjBzcGFjZXxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop');
+}
+
+body.theme-default .room-scene {
+    background-image: url('https://plus.unsplash.com/premium_photo-1661875977781-adbb21036841?w=1600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTd8fGxpYnJhcnl8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop');
+}
+
+/* 3. The HUD (Top Bar) */
+.room-hud {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+}
+
+.room-info-badge {
+    background: rgba(255, 255, 255, 0.95);
+    color: #000;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* 4. The Timer Display */
+.hud-timer-box {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.2);
+    text-align: right;
+    color: white;
+}
+
+.mini-timer {
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: #65f0c7; /* Your accent2 color */
+}
+
+.mini-task {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    margin-top: 4px;
+    color: #ccc;
+}
+
+/* 5. The Floor (Avatar Area) */
+.room-floor {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end; 
+    gap: 30px;
+    height: 250px;
+    /* Optional: Subtle shadow to ground the characters */
+    background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+}
+
+/* 6. Avatar Characters */
+.avatar-char {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.avatar-char:hover {
+    transform: translateY(-8px) scale(1.05);
+}
+
+.char-body {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 20px rgba(255,255,255,0.4);
+    background-color: #888;
+    background-size: cover;
+    background-position: center;
+}
+
+.char-name {
+    margin-top: 8px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-align: center;
+    max-width: 150px;
+}
+
+/* 7. Controls (Bottom Right) */
+.room-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+}
