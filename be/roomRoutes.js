@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const RoomManager = require('./RoomManager');
+const { findUserById } = require('./usersStore');
 
 // Ensure this matches your Auth secret
 const JWT_SECRET = process.env.JWT_SECRET || "neveralone-dev-secret"; 
@@ -27,24 +28,31 @@ const requireAuth = (req, res, next) => {
     }
 };
 
+async function getUserForRoom(userId) {
+    const fullUser = await findUserById(userId);
+    if (!fullUser) return { userId, username: "Anonymous" };
+
+    return {
+        userId: fullUser.id,
+        username: fullUser.displayName || fullUser.email,
+        avatarUrl: fullUser.avatarUrl // <--- Now we have the avatar!
+    };
+}
 // POST /api/rooms/create
-router.post('/create', requireAuth, (req, res) => {
+router.post('/create', requireAuth, async (req, res) => {
     try {
         const { task, time, theme } = req.body;
 
-        const hostUser = {
-            userId: req.user.id || req.user.userId || "unknown",
-            username: req.user.username || req.user.email || "Anonymous",
-            // You can add avatarUrl here if it's in the token
-        };
+        const hostUser = await getUserForRoom(req.user.sub || req.user.id);
 
         const config = {
-            hostTask: task,         // <--- Map 'task' input to 'hostTask'
+            hostTask: task,
             time: parseInt(time),
             theme: theme
         };
 
-        const room = RoomManager.createRoom(hostUser, config);
+
+        const room = await RoomManager.createRoom(hostUser, config);
 
         res.json({
             success: true,
@@ -57,18 +65,16 @@ router.post('/create', requireAuth, (req, res) => {
 });
 
 // POST /api/rooms/join
-router.post('/join', requireAuth, (req, res) => {
+router.post('/join', requireAuth, async (req, res) => {
     try {
         // Frontend sends: { code, task }
-        const { code, task } = req.body; 
-        
-        const user = {
-            userId: req.user.id || req.user.userId,
-            username: req.user.username || req.user.email
-        };
+        const { code, task } = req.body;
 
-        // Pass 'task' to the manager
-        const room = RoomManager.joinRoom(user, code, task);
+        const user = await getUserForRoom(req.user.sub || req.user.id);
+
+        const room = await RoomManager.joinRoom(user, code, task);
+
+
 
         res.json({
             success: true,

@@ -41,7 +41,29 @@ class Room {
     generateCode() {
         return Math.random().toString(36).substring(2,8).toUpperCase();
     }
+    static fromJSON(data) {
+        // 1. Create a dummy instance (inputs don't matter as we overwrite them)
+        const room = new Room({ userId: 'temp' }, {});
 
+        // 2. Overwrite properties with saved data
+        room._roomId = data.roomId;
+        room._roomCode = data.roomCode;
+        room._name = data.name;
+        room._host = data.host;
+        room._activeParticipants = data.activeParticipants || [];
+        room._timerDuration = data.timerDuration;
+
+        // 3. Re-hydrate Settings object
+        if (data.settings) {
+            room._roomSettings = new RoomSettings(
+                data.settings.isPrivate,
+                data.settings.maxUsers,
+                data.settings.theme
+            );
+        }
+
+        return room;
+    }
     /**
      * Adds a new user to the room if they aren't already there.
      * @param {User} user - The user object

@@ -9,15 +9,22 @@
  * Home Screen + Room Creation/Joining Logic
  */
 
+/**
+ * fe/home.page.js
+ * Home Screen + Room Creation/Joining Logic
+ */
+
 import { me, getToken, clearToken } from "./auth.js";
-import { loadRoomPage } from "./room.page.js"; 
+import { postJson } from "./api.js"; // <--- Added import
+import { loadRoomPage } from "./room.page.js";
 
 // We export this function so room.page.js can call it when the user leaves a room
 export async function loadHomePage() {
     const app = document.getElementById('app');
-    
+
     // 1. Auth Check
-    if (!getToken()) {
+    const token = getToken();
+    if (!token) {
         window.location.replace("/index.html");
         return;
     }
@@ -35,10 +42,10 @@ export async function loadHomePage() {
                 </div>
                 <div class="row">
                     <div class="pill" id="pointPill">⭐ ...</div>
-                    <div class="avatarLink">
+                    <a href="/user.profile.html" class="avatarLink" style="text-decoration: none;">
                         <img id="userAvatarImg" style="display:none">
                         <span id="userAvatarFallback" style="display:none">?</span>
-                    </div>
+                    </a>
                     <button id="logoutBtn" class="btn logout" style="padding: 8px 12px;">Logout</button>
                 </div>
             </div>
@@ -49,15 +56,15 @@ export async function loadHomePage() {
                 
                 <div style="display:grid; gap:var(--gap); align-content:start;">
                     
-            <div class="card">
-                <h2>Join a Session</h2>
-                <p class="muted" style="margin-bottom:14px;">Enter a code and your goal.</p>
-                <div class="form">
-                    <input type="text" id="joinCodeInput" placeholder="Room Code (e.g. A1B2)">
-                    <input type="text" id="joinTaskInput" placeholder="My Task (e.g. Reading)">
-                    <button id="btnJoin" class="btn primary">Join Room</button>
-                </div>
-            </div>
+                    <div class="card">
+                        <h2>Join a Session</h2>
+                        <p class="muted" style="margin-bottom:14px;">Enter a code and your goal.</p>
+                        <div class="form">
+                            <input type="text" id="joinCodeInput" placeholder="Room Code (e.g. A1B2)">
+                            <input type="text" id="joinTaskInput" placeholder="My Task (e.g. Reading)">
+                            <button id="btnJoin" class="btn primary">Join Room</button>
+                        </div>
+                    </div>
 
                     <div class="card" style="background: linear-gradient(135deg, rgba(122,167,255,.1), rgba(101,240,199,.05)); border-color:var(--accent);">
                         <h2>Start New Session</h2>
@@ -142,7 +149,7 @@ async function bindEventsAndLoadUser() {
         userNameDisplay.textContent = u.displayName || "User";
         userEmailDisplay.textContent = u.email || "";
         pointPill.textContent = `⭐ ${u.points ?? 0}`;
-        
+
         // Avatar Logic
         const initial = (u.displayName?.[0] || u.email?.[0] || "?").toUpperCase();
         userAvatarFallback.textContent = initial;
@@ -178,13 +185,14 @@ async function bindEventsAndLoadUser() {
     const modal = document.getElementById('createModal');
     const openBtn = document.getElementById('btnOpenModal');
     const cancelBtn = document.getElementById('btnCancel');
-    
+
     // Safety check in case elements aren't found
     if(openBtn) openBtn.onclick = () => modal.classList.add('open');
     if(cancelBtn) cancelBtn.onclick = () => modal.classList.remove('open');
 
     // --- API ACTIONS ---
     const token = getToken();
+    const headers = { 'Authorization': `Bearer ${token}` };
 
     // 1. CREATE ROOM
     const createBtn = document.getElementById('btnCreateConfirm');
@@ -195,25 +203,16 @@ async function bindEventsAndLoadUser() {
             const theme = document.getElementById('confTheme').value;
 
             try {
-                const res = await fetch('/api/rooms/create', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` 
-                    },
-                    body: JSON.stringify({ task, time, theme })
-                });
+                // Using postJson handles JSON stringify and errors
+                const data = await postJson('/api/rooms/create', { task, time, theme }, headers);
 
-                const data = await res.json();
                 if (data.success) {
                     modal.classList.remove('open');
                     loadRoomPage(data); // Switch view
-                } else {
-                    alert("Error: " + (data.error || "Unknown"));
                 }
             } catch (e) {
                 console.error(e);
-                alert("Connection Failed");
+                alert(e.message || "Connection Failed");
             }
         };
     }
@@ -223,29 +222,19 @@ async function bindEventsAndLoadUser() {
     if(joinBtn) {
         joinBtn.onclick = async () => {
             const code = document.getElementById('joinCodeInput').value;
-            const task = document.getElementById('joinTaskInput').value || "Collaborating"; 
+            const task = document.getElementById('joinTaskInput').value || "Collaborating";
             if(!code) return alert("Please enter a code");
 
             try {
-                const res = await fetch('/api/rooms/join', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` 
-                    },
-                    // Send Code AND Task
-                    body: JSON.stringify({ code, task }) 
-                });
+                const data = await postJson('/api/rooms/join', { code, task }, headers);
 
-                const data = await res.json();
                 if (data.success) {
                     loadRoomPage(data); // Switch view
-                } else {
-                    alert("Error: " + (data.error || "Room not found"));
                 }
             } catch (e) {
                 console.error(e);
-                alert("Connection Failed");
+                // api.js extracts the error message from the backend response automatically
+                alert(e.message || "Room not found or Connection Failed");
             }
         };
     }

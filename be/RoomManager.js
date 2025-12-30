@@ -9,44 +9,52 @@
  */
 const Room = require('./Room');
 // This is your Data Adapter. 
-// Currently it mocks Redis. Later, you update THIS file to connect to real Redis.
-const redis = require('./RedisSimulation'); 
+// redis connector
+const client = require('./redisClient');
+// Keys
+const keyRoom = (id) => `room:${id}`;
+const keyRoomCode = (code) => `room_code:${code}`;
 
 class RoomManager {
-    
-    createRoom(host, config) {
-        // config now expects: { roomName, hostTask, time, theme }
-        // create Room instance
+
+    async createRoom(host, config) {
         const newRoom = new Room(host, config);
 
-        // persist Room
-        redis.saveRoom(newRoom);
+        // Serialize
+        const roomJson = JSON.stringify(newRoom.toJSON());
 
-        // map share code to Room ID (Redis requirement)
-        redis.setKey(newRoom.getRoomCode(), newRoom.getRoomId());
+        // Save Room Data AND Code Mapping
+        // Expire after 24 hours (86400 seconds) to clean up old rooms
+        await client.multi()
+            .set(keyRoom(newRoom.getRoomId()), roomJson, { EX: 86400 })
+            .set(keyRoomCode(newRoom.getRoomCode()), newRoom.getRoomId(), { EX: 86400 })
+            .exec();
 
         return newRoom;
     }
 
-    joinRoom(user, code, taskName) {
-        // validate code
-        const roomId = redis.getIdByKey(code);
+    async joinRoom(user, code, taskName) {
+        // 1. Find Room ID by Code
+        const roomId = await client.get(keyRoomCode(code));
         if (!roomId) {
             throw new Error("Invalid or expired Room Code");
         }
 
-        // retrieve Room
-        const room = redis.getRoom(roomId);
-        if (!room) {
-            throw new Error("Room not found");
+        // 2. Fetch Room Data
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) {
+            throw new Error("Room not found (expired?)");
         }
 
-        // add User (prevent duplicates) logic is now inside Room.js
-        // We pass the taskName the user typed in the frontend
+        // 3. Hydrate Room Object
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        // 4. Modify State (Add User)
         room.addParticipant(user, taskName);
 
-        // CRITICAL: Save the updated room state back to Redis
-        redis.saveRoom(room); 
+        // 5. Save Updated State back to Redis
+        // We extend the TTL (Time To Live) since there is activity
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
 
         return room;
     }
