@@ -58,6 +58,48 @@ class RoomManager {
 
         return room;
     }
+
+    // TIMER (FR9 / FR10)
+    async startTimer(roomId, userId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) {
+            throw new Error("Room not found");
+        }
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        room.startTimer(userId);
+
+        await client.set(
+            keyRoom(roomId),
+            JSON.stringify(room.toJSON()),
+            { EX: 86400 }
+        );
+
+        return room;
+    }
+
+    async stopTimer(roomId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) {
+            throw new Error("Room not found");
+        }
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        const elapsedMs = room.stopTimer();
+
+        await client.set(
+            keyRoom(roomId),
+            JSON.stringify(room.toJSON()),
+            { EX: 86400 }
+        );
+
+        return {
+            elapsedMs,
+            room
+        };
+    }
 }
 
 module.exports = new RoomManager();

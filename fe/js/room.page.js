@@ -3,9 +3,47 @@
  */
 import { loadHomePage } from './home.page.js';
 import { me } from './auth.js'; 
+let countdownInterval = null;
 
 export async function loadRoomPage(roomData) {
     const app = document.getElementById('app');
+
+    // Timer
+    function startCountdown(roomData) {
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        const timerEl = document.querySelector('.mini-timer');
+        if (!timerEl) return;
+
+        const totalSeconds = roomData.timerDuration * 60;
+
+        if (!roomData.timerRunning || !roomData.timerStartedAt) {
+            timerEl.textContent = `${roomData.timerDuration || 25}:00`;
+            return;
+        }
+
+        countdownInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - roomData.timerStartedAt) / 1000);
+            const remaining = totalSeconds - elapsed;
+
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                timerEl.textContent = "00:00";
+                onTimerFinished();
+                return;
+            }
+
+            const min = String(Math.floor(remaining / 60)).padStart(2, '0');
+            const sec = String(remaining % 60).padStart(2, '0');
+            timerEl.textContent = `${min}:${sec}`;
+        }, 1000);
+    }
+
+    function onTimerFinished() {
+        alert("Time is up! Session finished.");
+        loadHomePage();
+    }
     
     // 1. Get Me (to identify which avatar is mine)
     let myUser = {};
@@ -38,6 +76,8 @@ export async function loadRoomPage(roomData) {
             <div class="room-floor" id="avatarStage"></div>
 
             <div class="room-controls">
+                <button id="btnStartTimer" class="btn primary">Start Timer</button>
+                <button id="btnStopTimer" class="btn secondary">Stop Timer</button>
                 <button id="btnLeave" class="btn logout">Exit Room</button>
             </div>
         </div>
@@ -45,6 +85,41 @@ export async function loadRoomPage(roomData) {
 
     // 5. Render ALL Avatars with THEIR tasks
     renderAvatars(participants);
+
+    document.getElementById('btnStartTimer').disabled = !!roomData.timerRunning;
+    document.getElementById('btnStopTimer').disabled = !roomData.timerRunning;
+
+    startCountdown(roomData);
+
+    const token = localStorage.getItem('token');
+
+    document.getElementById('btnStartTimer').onclick = async () => {
+        const res = await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+
+        loadRoomPage(data); // Re-render mit Timer-Daten
+    };
+
+    document.getElementById('btnStopTimer').onclick = async () => {
+        const res = await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+
+        loadRoomPage(data.room);
+    };
 
     // Leave Logic...
     document.getElementById('btnLeave').onclick = () => { /*...*/ loadHomePage(); };

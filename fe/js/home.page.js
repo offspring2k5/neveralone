@@ -118,6 +118,16 @@ export async function loadHomePage() {
                     </label>
 
                     <label>
+                        or Custom minutes:
+                        <input type="number" id="confMinutes" min="0" max="180" value="0">
+                    </label>
+
+                    <label>
+                        <input type="checkbox" id="confAutoStart">
+                        Start timer automatically
+                    </label>
+
+                    <label>
                         Room Theme
                         <select id="confTheme">
                             <option value="default">Default</option>
@@ -220,11 +230,21 @@ async function bindEventsAndLoadUser() {
     if(createBtn) {
         createBtn.onclick = async () => {
             const task = document.getElementById('confTask').value || "Working";
-            const time = document.getElementById('confTime').value;
             const theme = document.getElementById('confTheme').value;
 
+            // get time set
+            let time = parseInt(document.getElementById('confTime').value);
+
+            const autoStartTimer = document.getElementById('confAutoStart').checked;
+            const customMinutes = parseInt(document.getElementById('confMinutes').value);
+
+            // if time is custom set, overwrites dropdown
+            if (!isNaN(customMinutes) && customMinutes > 0) {
+                time = customMinutes;
+            }
+
             try {
-                const data = await postJson('/api/rooms/create', { task, time, theme }, headers);
+                const data = await postJson('/api/rooms/create', { task, time, theme, autoStartTimer }, headers);
                 if (data.success) {
                     modal.classList.remove('open');
                     loadRoomPage(data);
