@@ -32,10 +32,19 @@ class Room {
 
         // Settings
         const _theme = config.theme || "default";
-        this._roomSettings = new RoomSettings(false, 10, _theme);
+        const _autoStartTimer = config.autoStartTimer === true || config.autoStartTimer === "true";
+        this._roomSettings = new RoomSettings(false, 10, _theme, _autoStartTimer);
         
         // Store global timer duration
         this._timerDuration = config.time || 25; 
+
+        // timer variables
+        this._timerStartedAt = null;
+        this._timerRunning = false;
+
+        if (_autoStartTimer && !this._timerRunning) {
+            this.startTimer(this._host.userId);
+        }
     }
 
     generateCode() {
@@ -52,13 +61,16 @@ class Room {
         room._host = data.host;
         room._activeParticipants = data.activeParticipants || [];
         room._timerDuration = data.timerDuration;
+        room._timerStartedAt = data.timerStartedAt || null;
+        room._timerRunning = data.timerRunning || false;
 
         // 3. Re-hydrate Settings object
         if (data.settings) {
             room._roomSettings = new RoomSettings(
                 data.settings.isPrivate,
                 data.settings.maxUsers,
-                data.settings.theme
+                data.settings.theme,
+                data.settings.autoStartTimer
             );
         }
 
@@ -85,6 +97,28 @@ class Room {
         this._activeParticipants = this._activeParticipants.filter(user => user.userId !== userId);
     }
 
+    startTimer(userId) {
+        if (this._timerRunning) {
+            throw new Error("Timer already running");
+        }
+
+        this._timerStartedAt = Date.now();
+        this._timerRunning = true;
+    }
+
+    stopTimer() {
+        if (!this._timerRunning) {
+            throw new Error("Timer not running");
+        }
+
+        const elapsedMs = Date.now() - this._timerStartedAt;
+
+        this._timerRunning = false;
+        this._timerStartedAt = null;
+
+        return elapsedMs;
+    }
+
     // Getters
     getRoomId() { return this._roomId; }
     getRoomCode() { return this._roomCode; }
@@ -101,7 +135,9 @@ class Room {
             host: this._host,
             settings: this._roomSettings,
             activeParticipants: this._activeParticipants,
-            timerDuration: this._timerDuration
+            timerDuration: this._timerDuration,
+            timerStartedAt: this._timerStartedAt,
+            timerRunning: this._timerRunning,
         };
     }
 }

@@ -41,14 +41,15 @@ async function getUserForRoom(userId) {
 // POST /api/rooms/create
 router.post('/create', requireAuth, async (req, res) => {
     try {
-        const { task, time, theme } = req.body;
+        const { task, time, theme, autoStartTimer} = req.body;
 
         const hostUser = await getUserForRoom(req.user.sub || req.user.id);
 
         const config = {
             hostTask: task,
             time: parseInt(time),
-            theme: theme
+            theme: theme,
+            autoStartTimer: autoStartTimer === true || autoStartTimer === "true"
         };
 
 
@@ -73,12 +74,49 @@ router.post('/join', requireAuth, async (req, res) => {
         const user = await getUserForRoom(req.user.sub || req.user.id);
 
         const room = await RoomManager.joinRoom(user, code, task);
-
+        // Notify all sockets in this room that the data has changed
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
 
 
         res.json({
             success: true,
             ...room.toJSON()
+        });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+// POST /api/rooms/:roomId/timer/start  (FR9)
+router.post('/:roomId/timer/start', requireAuth, async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const userId = req.user.sub || req.user.id;
+
+        const room = await RoomManager.startTimer(roomId, userId);
+        // --- WEBSOCKET UPDATE ---
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
+        res.json({
+            success: true,
+            ...room.toJSON()
+        });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+// POST /api/rooms/:roomId/timer/stop  (FR10)
+router.post('/:roomId/timer/stop', requireAuth, async (req, res) => {
+    try {
+        const { roomId } = req.params;
+
+        const result = await RoomManager.stopTimer(roomId);
+        // --- WEBSOCKET UPDATE ---
+        req.app.get('io').to(result.room.getRoomId()).emit('room_update', result.room.toJSON());
+        res.json({
+            success: true,
+            elapsedMs: result.elapsedMs,
+            room: result.room.toJSON()
         });
     } catch (e) {
         res.status(400).json({ error: e.message });

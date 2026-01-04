@@ -2,10 +2,72 @@
  * fe/room.page.js
  */
 import { loadHomePage } from './home.page.js';
-import { me } from './auth.js'; 
+import { me } from './auth.js';
+import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+let countdownInterval = null;
+let socket = null;
 
 export async function loadRoomPage(roomData) {
     const app = document.getElementById('app');
+    // --- SOCKET SETUP ---
+    // Initialize socket if it doesn't exist (window.io comes from the script tag)
+    if (!socket) {
+        console.log("Initializing Socket via ESM import...");
+        socket = io(); // Connects to the same URL as the website (localhost:3000)
+    }
+
+    console.log("Socket Status:", socket ? "Active" : "Not Found");
+    if (socket) {
+        // Tell server we are in this room ID
+        socket.emit('join_room', roomData.roomId);
+
+        // Remove previous listener to avoid duplicates
+        socket.off('room_update');
+
+        // Listen for updates
+        socket.on('room_update', (updatedRoomData) => {
+            console.log("Room update received:", updatedRoomData);
+            // Re-render the page with new data
+            loadRoomPage(updatedRoomData);
+        });
+    }
+    // Timer
+    function startCountdown(roomData) {
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        const timerEl = document.querySelector('.mini-timer');
+        if (!timerEl) return;
+
+        const totalSeconds = roomData.timerDuration * 60;
+
+        if (!roomData.timerRunning || !roomData.timerStartedAt) {
+            timerEl.textContent = `${roomData.timerDuration || 25}:00`;
+            return;
+        }
+
+        countdownInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - roomData.timerStartedAt) / 1000);
+            const remaining = totalSeconds - elapsed;
+
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                timerEl.textContent = "00:00";
+                if (roomData.timerRunning) onTimerFinished();
+                onTimerFinished();
+                return;
+            }
+
+            const min = String(Math.floor(remaining / 60)).padStart(2, '0');
+            const sec = String(remaining % 60).padStart(2, '0');
+            timerEl.textContent = `${min}:${sec}`;
+        }, 1000);
+    }
+
+    function onTimerFinished() {
+        alert("Time is up! Session finished.");
+        loadHomePage();
+    }
     
     // 1. Get Me (to identify which avatar is mine)
     let myUser = {};
@@ -38,6 +100,8 @@ export async function loadRoomPage(roomData) {
             <div class="room-floor" id="avatarStage"></div>
 
             <div class="room-controls">
+                <button id="btnStartTimer" class="btn primary">Start Timer</button>
+                <button id="btnStopTimer" class="btn secondary">Stop Timer</button>
                 <button id="btnLeave" class="btn logout">Exit Room</button>
             </div>
         </div>
@@ -46,8 +110,37 @@ export async function loadRoomPage(roomData) {
     // 5. Render ALL Avatars with THEIR tasks
     renderAvatars(participants);
 
+    document.getElementById('btnStartTimer').disabled = !!roomData.timerRunning;
+    document.getElementById('btnStopTimer').disabled = !roomData.timerRunning;
+
+    startCountdown(roomData);
+
+    const token = localStorage.getItem('token');
+
+    document.getElementById('btnStartTimer').onclick = async () => {
+        // We do NOT call loadRoomPage here anymore.
+        // We wait for the socket 'room_update' event to trigger the re-render.
+        await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    };
+
+
+    document.getElementById('btnStopTimer').onclick = async () => {
+        await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    };
+
+
+
     // Leave Logic...
-    document.getElementById('btnLeave').onclick = () => { /*...*/ loadHomePage(); };
+    document.getElementById('btnLeave').onclick = () => {
+        if(socket) socket.emit('leave_room', roomData.roomId); // Optional cleanup
+        loadHomePage();
+    };
 }
 
 function renderAvatars(users) {

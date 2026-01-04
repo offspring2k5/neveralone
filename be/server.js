@@ -9,11 +9,14 @@
 
 const express = require("express");
 const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
 const authRoutes = require("./authRoutes");
 const roomRoutes = require('./roomRoutes');
 
 const app = express();
-
+const server = http.createServer(app); // Wrap express in HTTP server
+const io = new Server(server);
 // --- Config ---
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3000);
@@ -26,7 +29,23 @@ const UPLOADS_DIR = path.join(__dirname, "..", "db", "user_uploads");
 
 // --- Middleware ---
 app.use(express.json()); // muss vor API-Routen stehen
+// --- Share IO with Routes ---
+app.set('io', io); // Make 'io' accessible in routes
 
+// --- Socket.io Logic ---
+io.on('connection', (socket) => {
+    console.log('Socket connected:', socket.id);
+
+    // Allow client to join a specific room channel
+    socket.on('join_room', (roomId) => {
+        socket.join(roomId);
+        console.log(`Socket ${socket.id} joined room ${roomId}`);
+    });
+
+    socket.on('disconnect', () => {
+        // Handle disconnect if needed
+    });
+});
 // --- Static Frontend ---
 // HTML + CSS: /index.html, /styles.css, /home.html, /user.profile.html
 app.use(express.static(FE_HTML_DIR));
@@ -56,7 +75,7 @@ module.exports = app;
 
 // --- Start server (nur wenn direkt ausgeführt) ---
 if (require.main === module) {
-    app.listen(PORT, HOST, () => {
+    server.listen(PORT, HOST, () => {
         console.log(`Server running at http://${HOST}:${PORT}/`);
     });
 }
