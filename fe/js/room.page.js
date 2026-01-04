@@ -2,12 +2,35 @@
  * fe/room.page.js
  */
 import { loadHomePage } from './home.page.js';
-import { me } from './auth.js'; 
+import { me } from './auth.js';
+import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
 let countdownInterval = null;
+let socket = null;
 
 export async function loadRoomPage(roomData) {
     const app = document.getElementById('app');
+    // --- SOCKET SETUP ---
+    // Initialize socket if it doesn't exist (window.io comes from the script tag)
+    if (!socket) {
+        console.log("Initializing Socket via ESM import...");
+        socket = io(); // Connects to the same URL as the website (localhost:3000)
+    }
 
+    console.log("Socket Status:", socket ? "Active" : "Not Found");
+    if (socket) {
+        // Tell server we are in this room ID
+        socket.emit('join_room', roomData.roomId);
+
+        // Remove previous listener to avoid duplicates
+        socket.off('room_update');
+
+        // Listen for updates
+        socket.on('room_update', (updatedRoomData) => {
+            console.log("Room update received:", updatedRoomData);
+            // Re-render the page with new data
+            loadRoomPage(updatedRoomData);
+        });
+    }
     // Timer
     function startCountdown(roomData) {
         if (countdownInterval) clearInterval(countdownInterval);
@@ -30,6 +53,7 @@ export async function loadRoomPage(roomData) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
                 timerEl.textContent = "00:00";
+                if (roomData.timerRunning) onTimerFinished();
                 onTimerFinished();
                 return;
             }
@@ -94,35 +118,29 @@ export async function loadRoomPage(roomData) {
     const token = localStorage.getItem('token');
 
     document.getElementById('btnStartTimer').onclick = async () => {
-        const res = await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
+        // We do NOT call loadRoomPage here anymore.
+        // We wait for the socket 'room_update' event to trigger the re-render.
+        await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-
-        const data = await res.json();
-        if (data.error) return alert(data.error);
-
-        loadRoomPage(data); // Re-render mit Timer-Daten
     };
+
 
     document.getElementById('btnStopTimer').onclick = async () => {
-        const res = await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
+        await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-
-        const data = await res.json();
-        if (data.error) return alert(data.error);
-
-        loadRoomPage(data.room);
     };
 
+
+
     // Leave Logic...
-    document.getElementById('btnLeave').onclick = () => { /*...*/ loadHomePage(); };
+    document.getElementById('btnLeave').onclick = () => {
+        if(socket) socket.emit('leave_room', roomData.roomId); // Optional cleanup
+        loadHomePage();
+    };
 }
 
 function renderAvatars(users) {

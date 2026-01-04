@@ -74,7 +74,8 @@ router.post('/join', requireAuth, async (req, res) => {
         const user = await getUserForRoom(req.user.sub || req.user.id);
 
         const room = await RoomManager.joinRoom(user, code, task);
-
+        // Notify all sockets in this room that the data has changed
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
 
 
         res.json({
@@ -93,7 +94,8 @@ router.post('/:roomId/timer/start', requireAuth, async (req, res) => {
         const userId = req.user.sub || req.user.id;
 
         const room = await RoomManager.startTimer(roomId, userId);
-
+        // --- WEBSOCKET UPDATE ---
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
         res.json({
             success: true,
             ...room.toJSON()
@@ -109,7 +111,8 @@ router.post('/:roomId/timer/stop', requireAuth, async (req, res) => {
         const { roomId } = req.params;
 
         const result = await RoomManager.stopTimer(roomId);
-
+        // --- WEBSOCKET UPDATE ---
+        req.app.get('io').to(result.room.getRoomId()).emit('room_update', result.room.toJSON());
         res.json({
             success: true,
             elapsedMs: result.elapsedMs,
