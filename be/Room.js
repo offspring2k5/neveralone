@@ -41,7 +41,8 @@ class Room {
         // timer variables
         this._timerStartedAt = null;
         this._timerRunning = false;
-
+        // Track accumulated time when paused (in milliseconds)
+        this._elapsedTime = 0;
         if (_autoStartTimer && !this._timerRunning) {
             this.startTimer(this._host.userId);
         }
@@ -63,7 +64,7 @@ class Room {
         room._timerDuration = data.timerDuration;
         room._timerStartedAt = data.timerStartedAt || null;
         room._timerRunning = data.timerRunning || false;
-
+        room._elapsedTime = data.elapsedTime || 0;
         // 3. Re-hydrate Settings object
         if (data.settings) {
             room._roomSettings = new RoomSettings(
@@ -111,12 +112,13 @@ class Room {
             throw new Error("Timer not running");
         }
 
-        const elapsedMs = Date.now() - this._timerStartedAt;
 
+        const currentSegment = Date.now() - this._timerStartedAt;
+        this._elapsedTime += currentSegment;
         this._timerRunning = false;
         this._timerStartedAt = null;
 
-        return elapsedMs;
+        return currentSegment;
     }
 
     // Getters
@@ -138,6 +140,7 @@ class Room {
             timerDuration: this._timerDuration,
             timerStartedAt: this._timerStartedAt,
             timerRunning: this._timerRunning,
+            elapsedTime: this._elapsedTime
         };
     }
 }

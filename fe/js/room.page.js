@@ -31,6 +31,13 @@ export async function loadRoomPage(roomData) {
             loadRoomPage(updatedRoomData);
         });
     }
+    // NEW: Listen for reactions from the server
+    if (socket) {
+        socket.off('reaction_received');
+        socket.on('reaction_received', ({ targetUserId, reaction }) => {
+            showReactionOnAvatar(targetUserId, reaction);
+        });
+    }
     // Timer
     function startCountdown(roomData) {
         if (countdownInterval) clearInterval(countdownInterval);
@@ -38,37 +45,56 @@ export async function loadRoomPage(roomData) {
         const timerEl = document.querySelector('.mini-timer');
         if (!timerEl) return;
 
-        const totalSeconds = roomData.timerDuration * 60;
+        // 1. Calculate Total Time in MS
+        const totalDurationMs = (roomData.timerDuration || 25) * 60 * 1000;
 
-        if (!roomData.timerRunning || !roomData.timerStartedAt) {
-            timerEl.textContent = `${roomData.timerDuration || 25}:00`;
+        // 2. Get time already passed in previous segments
+        const previouslyElapsed = roomData.elapsedTime || 0;
+
+        // Helper function to update the text
+        const updateDisplay = (remainingMs) => {
+            const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+            const min = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+            const sec = String(totalSeconds % 60).padStart(2, '0');
+            timerEl.textContent = `${min}:${sec}`;
+            return totalSeconds <= 0;
+        };
+
+        // Case A: Timer is PAUSED
+        if (!roomData.timerRunning) {
+            const remaining = totalDurationMs - previouslyElapsed;
+            updateDisplay(remaining);
             return;
         }
 
-        countdownInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - roomData.timerStartedAt) / 1000);
-            const remaining = totalSeconds - elapsed;
+        // Case B: Timer is RUNNING
+        const startTime = new Date(roomData.timerStartedAt).getTime();
 
-            if (remaining <= 0) {
+        countdownInterval = setInterval(() => {
+            const currentSegment = Date.now() - startTime;
+            const totalElapsed = previouslyElapsed + currentSegment;
+            const remaining = totalDurationMs - totalElapsed;
+
+            const isFinished = updateDisplay(remaining);
+
+            if (isFinished) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
-                timerEl.textContent = "00:00";
-                if (roomData.timerRunning) onTimerFinished();
+                // Optional: Trigger finish alert/sound
                 onTimerFinished();
-                return;
             }
-
-            const min = String(Math.floor(remaining / 60)).padStart(2, '0');
-            const sec = String(remaining % 60).padStart(2, '0');
-            timerEl.textContent = `${min}:${sec}`;
         }, 1000);
+
+        // Run once immediately to avoid 1-second delay
+        const currentSegment = Date.now() - startTime;
+        updateDisplay(totalDurationMs - (previouslyElapsed + currentSegment));
     }
 
     function onTimerFinished() {
         alert("Time is up! Session finished.");
         loadHomePage();
     }
-    
+
     // 1. Get Me (to identify which avatar is mine)
     let myUser = {};
     try { const d = await me(); myUser = d.user; } catch(e){}
@@ -106,9 +132,8 @@ export async function loadRoomPage(roomData) {
             </div>
         </div>
     `;
-
+    renderAvatars(participants, roomData.roomId, myUser.id);
     // 5. Render ALL Avatars with THEIR tasks
-    renderAvatars(participants);
 
     document.getElementById('btnStartTimer').disabled = !!roomData.timerRunning;
     document.getElementById('btnStopTimer').disabled = !roomData.timerRunning;
@@ -143,17 +168,16 @@ export async function loadRoomPage(roomData) {
     };
 }
 
-function renderAvatars(users) {
+function renderAvatars(users, roomId, myUserId) {
     const stage = document.getElementById('avatarStage');
     if(!stage) return;
 
     stage.innerHTML = users.map(u => {
+        // ... (HTML generation remains the same) ...
         const img = u.avatarUrl || 'https://ui-avatars.com/api/?background=random&name=' + (u.username || 'User');
-        // Get the individual task
         const task = u.currentTask || "Working";
-
         return `
-            <div class="avatar-char">
+            <div class="avatar-char" data-userid="${u.userId}">
                 <div class="char-body" style="background-image: url('${img}');"></div>
                 <div class="char-name">
                     ${u.username} <br>
@@ -162,8 +186,82 @@ function renderAvatars(users) {
             </div>
         `;
     }).join('');
+
+    document.querySelectorAll('.avatar-char').forEach(el => {
+        el.onclick = (e) => {
+            e.stopPropagation();
+            const targetId = el.getAttribute('data-userid');
+
+            // --- NEW: Prevent Self-Reaction ---
+            // If the clicked avatar belongs to me, do nothing.
+            if (targetId === myUserId) {
+                console.log("Ignored click on own avatar");
+                return;
+            }
+
+            openReactionMenu(e.clientX, e.clientY, targetId, roomId);
+        };
+    });
+}
+function openReactionMenu(x, y, targetUserId, roomId) {
+    // Remove existing menu if any
+    const existing = document.getElementById('reactionMenu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.id = 'reactionMenu';
+    menu.className = 'reaction-menu';
+    menu.style.left = x + 'px';
+    menu.style.top = (y - 50) + 'px'; // Show slightly above cursor
+
+    const smilies = ['🙂', '☹️', '❤️', '👍', '👎'];
+
+    smilies.forEach(emoji => {
+        const span = document.createElement('span');
+        span.textContent = emoji;
+        span.onclick = () => {
+            console.log("Clicked emoji:", emoji); // DEBUG LOG
+
+            if (socket) {
+                console.log("Sending reaction via socket...", roomId, targetUserId); // DEBUG LOG
+                socket.emit('send_reaction', { roomId, targetUserId, reaction: emoji });
+            } else {
+                console.error("Socket is NULL! Cannot send reaction."); // ERROR LOG
+            }
+
+            menu.remove();
+        };
+        menu.appendChild(span);
+    });
+
+    document.body.appendChild(menu);
+
+    // Close menu if clicking elsewhere
+    const closeMenu = () => {
+        if (menu.parentNode) menu.remove();
+        document.removeEventListener('click', closeMenu);
+    };
+    // Timeout to prevent immediate closing from the current click event
+    setTimeout(() => document.addEventListener('click', closeMenu), 10);
 }
 
+function showReactionOnAvatar(userId, emoji) {
+    // Find the avatar element
+    const avatarEl = document.querySelector(`.avatar-char[data-userid="${userId}"]`);
+    if (!avatarEl) return;
+
+    // Create floating element
+    const floatEl = document.createElement('div');
+    floatEl.textContent = emoji;
+    floatEl.className = 'floating-reaction';
+
+    avatarEl.appendChild(floatEl);
+
+    // Remove after animation (1.5s)
+    setTimeout(() => {
+        floatEl.remove();
+    }, 1500);
+}
 
 /**
  * fe/room.page.js

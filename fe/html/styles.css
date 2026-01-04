@@ -627,3 +627,68 @@ body.theme-default .room-scene {
     bottom: 20px;
     right: 20px;
 }
+.reaction-menu {
+    position: fixed;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: flex;
+    gap: 10px;
+    z-index: 9999;
+    animation: popIn 0.2s ease-out;
+}
+
+.reaction-menu span {
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.reaction-menu span:hover {
+    transform: scale(1.3);
+}
+
+@keyframes popIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Floating Reaction Animation */
+.avatar-char {
+    position: relative; /* Needed for absolute positioning of reaction */
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.avatar-char:active {
+    transform: scale(0.95);
+}
+
+.floating-reaction {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2.5rem;
+    pointer-events: none;
+    animation: floatUp 1.5s ease-out forwards;
+    z-index: 100;
+    text-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+@keyframes floatUp {
+    0% {
+        opacity: 1;
+        top: -10px;
+        transform: translateX(-50%) scale(0.5);
+    }
+    20% {
+        transform: translateX(-50%) scale(1.2);
+    }
+    100% {
+        opacity: 0;
+        top: -100px; /* Float upwards */
+        transform: translateX(-50%) scale(1);
+    }
+}
