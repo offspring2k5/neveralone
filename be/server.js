@@ -41,6 +41,10 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         console.log(`Socket ${socket.id} joined room ${roomId}`);
     });
+    socket.on('send_reaction', ({ roomId, targetUserId, reaction }) => {
+        // Broadcast to everyone in the room (including sender)
+        io.to(roomId).emit('reaction_received', { targetUserId, reaction });
+    });
 
     socket.on('disconnect', () => {
         // Handle disconnect if needed
