@@ -172,12 +172,20 @@ function renderAvatars(users, roomId, myUserId) {
     const stage = document.getElementById('avatarStage');
     if(!stage) return;
 
+    // 1. Render HTML with positions
     stage.innerHTML = users.map(u => {
-        // ... (HTML generation remains the same) ...
         const img = u.avatarUrl || 'https://ui-avatars.com/api/?background=random&name=' + (u.username || 'User');
         const task = u.currentTask || "Working";
+
+        // Use server coordinates or default to center
+        const posX = u.x !== undefined ? u.x : 50;
+        const posY = u.y !== undefined ? u.y : 50;
+
         return `
-            <div class="avatar-char" data-userid="${u.userId}">
+            <div class="avatar-char" 
+                 data-userid="${u.userId}"
+                 style="left: ${posX}%; top: ${posY}%;">
+                 
                 <div class="char-body" style="background-image: url('${img}');"></div>
                 <div class="char-name">
                     ${u.username} <br>
@@ -187,22 +195,92 @@ function renderAvatars(users, roomId, myUserId) {
         `;
     }).join('');
 
+    // 2. Add Interactions (Click & Drag)
     document.querySelectorAll('.avatar-char').forEach(el => {
+        const targetUserId = el.getAttribute('data-userid');
+        const isMe = (targetUserId === myUserId);
+
+        // -- Click Handling (Reactions) --
         el.onclick = (e) => {
+            // Only allow clicking OTHERS for reactions
+            // But dragging works for ME
+            if (isDragOccurred) return; // Don't show menu if we just dragged
+            if (isMe) return;
+
             e.stopPropagation();
-            const targetId = el.getAttribute('data-userid');
-
-            // --- NEW: Prevent Self-Reaction ---
-            // If the clicked avatar belongs to me, do nothing.
-            if (targetId === myUserId) {
-                console.log("Ignored click on own avatar");
-                return;
-            }
-
-            openReactionMenu(e.clientX, e.clientY, targetId, roomId);
+            openReactionMenu(e.clientX, e.clientY, targetUserId, roomId);
         };
+
+        // -- Drag Handling (Only for MY avatar) --
+        if (isMe) {
+            makeDraggable(el, roomId, myUserId);
+        }
     });
 }
+let isDragOccurred = false;
+
+function makeDraggable(el, roomId, userId) {
+    let startX, startY, initialLeft, initialTop;
+    const stage = document.getElementById('avatarStage');
+
+    el.onmousedown = (e) => {
+        e.preventDefault(); // Prevent default selection
+        isDragOccurred = false;
+
+        startX = e.clientX;
+        startY = e.clientY;
+
+        // Get current percentages
+        initialLeft = parseFloat(el.style.left);
+        initialTop = parseFloat(el.style.top);
+
+        // Add global listeners for drag
+        document.onmousemove = onMouseMove;
+        document.onmouseup = onMouseUp;
+    };
+
+    function onMouseMove(e) {
+        // Calculate movement
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            isDragOccurred = true;
+        }
+
+        // Convert pixels to percentage of stage
+        const stageRect = stage.getBoundingClientRect();
+        const percentX = (dx / stageRect.width) * 100;
+        const percentY = (dy / stageRect.height) * 100;
+
+        // Apply new position
+        el.style.left = (initialLeft + percentX) + '%';
+        el.style.top = (initialTop + percentY) + '%';
+    }
+
+    function onMouseUp(e) {
+        document.onmousemove = null;
+        document.onmouseup = null;
+
+        if (isDragOccurred) {
+            // Finalize position
+            const finalLeft = parseFloat(el.style.left);
+            const finalTop = parseFloat(el.style.top);
+
+            // Send to server
+            if(socket) {
+                socket.emit('move_avatar', {
+                    roomId,
+                    userId,
+                    x: finalLeft,
+                    y: finalTop
+                });
+            }
+        }
+    }
+}
+
+
 function openReactionMenu(x, y, targetUserId, roomId) {
     // Remove existing menu if any
     const existing = document.getElementById('reactionMenu');

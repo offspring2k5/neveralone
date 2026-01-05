@@ -100,6 +100,20 @@ class RoomManager {
             room
         };
     }
+    async moveAvatar(roomId, userId, x, y) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        // Update state
+        room.updateParticipantPosition(userId, x, y);
+
+        // Save
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+
+        return room;
+    }
 }
 
 module.exports = new RoomManager();
