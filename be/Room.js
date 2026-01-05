@@ -84,16 +84,25 @@ class Room {
      */
     addParticipant(user, taskName) {
         const exists = this._activeParticipants.find(u => u.userId === user.userId);
-        
+
         if (!exists) {
             const newParticipant = {
                 ...user,
-                currentTask: taskName || "Working"
+                currentTask: taskName || "Working",
+                // NEW: Initialize random position (percentage 10-80%)
+                x: Math.floor(Math.random() * 70) + 10,
+                y: Math.floor(Math.random() * 60) + 20
             };
             this._activeParticipants.push(newParticipant);
         }
     }
-
+    updateParticipantPosition(userId, x, y) {
+        const participant = this._activeParticipants.find(u => u.userId === userId);
+        if (participant) {
+            participant.x = x;
+            participant.y = y;
+        }
+    }
     removeUser(userId) {
         this._activeParticipants = this._activeParticipants.filter(user => user.userId !== userId);
     }

@@ -13,7 +13,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const authRoutes = require("./authRoutes");
 const roomRoutes = require('./roomRoutes');
-
+const RoomManager = require('./RoomManager');
 const app = express();
 const server = http.createServer(app); // Wrap express in HTTP server
 const io = new Server(server);
@@ -45,7 +45,17 @@ io.on('connection', (socket) => {
         // Broadcast to everyone in the room (including sender)
         io.to(roomId).emit('reaction_received', { targetUserId, reaction });
     });
-
+    socket.on('move_avatar', async ({ roomId, userId, x, y }) => {
+        try {
+            const updatedRoom = await RoomManager.moveAvatar(roomId, userId, x, y);
+            if (updatedRoom) {
+                // Broadcast new positions to everyone
+                io.to(roomId).emit('room_update', updatedRoom.toJSON());
+            }
+        } catch (e) {
+            console.error("Move error:", e);
+        }
+    });
     socket.on('disconnect', () => {
         // Handle disconnect if needed
     });

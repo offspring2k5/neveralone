@@ -574,39 +574,49 @@ body.theme-default .room-scene {
 
 /* 5. The Floor (Avatar Area) */
 .room-floor {
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: flex-end; 
-    gap: 30px;
-    height: 250px;
-    /* Optional: Subtle shadow to ground the characters */
+    flex: 1;
     background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+    position: relative; /* Essential for absolute children */
+    overflow: hidden;   /* Keep avatars inside */
+    /*border-top: 1px solid #eee;*/
 }
 
 /* 6. Avatar Characters */
 .avatar-char {
+    position: absolute; /* Allows moving via top/left */
     display: flex;
     flex-direction: column;
     align-items: center;
-    position: relative;
-    cursor: pointer;
-    transition: transform 0.2s;
+    width: 80px;
+
+    /* Center the anchor point */
+    transform: translate(-50%, -50%);
+
+    cursor: grab; /* Show hand cursor */
+    user-select: none; /* Prevent text selection while dragging */
+    transition: top 0.3s, left 0.3s; /* Smooth movement for updates */
 }
 
-.avatar-char:hover {
-    transform: translateY(-8px) scale(1.05);
-}
 
+.avatar-char:active {
+    cursor: grabbing;
+    transition: none; /* Disable smoothing while dragging for responsiveness */
+    z-index: 1000;    /* Bring to front */
+}
 .char-body {
-    width: 64px;
-    height: 64px;
+    width: 50px;       /* Ensure you have a set size */
+    height: 50px;
     border-radius: 50%;
-    border: 3px solid white;
-    box-shadow: 0 0 20px rgba(255,255,255,0.4);
-    background-color: #888;
-    background-size: cover;
-    background-position: center;
+
+    /* --- NEW: Fix image scaling --- */
+    background-size: cover;    /* Scale image to fill the circle */
+    background-position: center; /* Center the face */
+    background-repeat: no-repeat;
+    /* ----------------------------- */
+
+    margin-bottom: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    background-color: #ddd; /* Fallback color */
 }
 
 .char-name {
