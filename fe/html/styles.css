@@ -583,40 +583,50 @@ body.theme-default .room-scene {
 
 /* 6. Avatar Characters */
 .avatar-char {
-    position: absolute; /* Allows moving via top/left */
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 80px;
 
-    /* Center the anchor point */
+    /* RESTORED: Absolute positioning for Drag & Drop */
+    position: absolute;
+    /* RESTORED: Center the anchor point */
     transform: translate(-50%, -50%);
 
-    cursor: grab; /* Show hand cursor */
-    user-select: none; /* Prevent text selection while dragging */
-    transition: top 0.3s, left 0.3s; /* Smooth movement for updates */
+    cursor: grab; /* Hand cursor */
+    user-select: none; /* Prevent text selection */
+
+    /* Smooth movement only for non-drag updates */
+    transition: transform 0.2s, top 0.2s, left 0.2s;
+
+    /* Ensure it sits above the floor */
+    z-index: 10;
 }
 
+.avatar-char:hover {
+    transform: translate(-50%, -50%) translateY(-8px) scale(1.05);
+    z-index: 20; /* Bring hovered avatar to front */
+}
 
+/* RESTORED: Dragging State */
 .avatar-char:active {
     cursor: grabbing;
-    transition: none; /* Disable smoothing while dragging for responsiveness */
-    z-index: 1000;    /* Bring to front */
+    transition: none; /* Disable smoothing for instant drag response */
+    /* When dragging, we remove the hover 'lift' so it feels grounded to mouse */
+    transform: translate(-50%, -50%) scale(1.05);
+    z-index: 1000; /* Always on top */
 }
 .char-body {
-    width: 50px;       /* Ensure you have a set size */
-    height: 50px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 20px rgba(255,255,255,0.4);
 
-    /* --- NEW: Fix image scaling --- */
-    background-size: cover;    /* Scale image to fill the circle */
-    background-position: center; /* Center the face */
+    /* Image fitting */
+    background-color: #888;
+    background-size: cover;
+    background-position: center;
     background-repeat: no-repeat;
-    /* ----------------------------- */
-
-    margin-bottom: 5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    background-color: #ddd; /* Fallback color */
 }
 
 .char-name {
@@ -628,7 +638,8 @@ body.theme-default .room-scene {
     font-size: 0.75rem;
     font-weight: bold;
     text-align: center;
-    max-width: 150px;
+    white-space: nowrap; /* Prevent name breaking */
+    pointer-events: none; /* Let clicks pass through text to avatar */
 }
 
 /* 7. Controls (Bottom Right) */
@@ -664,16 +675,7 @@ body.theme-default .room-scene {
     to { transform: scale(1); opacity: 1; }
 }
 
-/* Floating Reaction Animation */
-.avatar-char {
-    position: relative; /* Needed for absolute positioning of reaction */
-    cursor: pointer;
-    transition: transform 0.1s;
-}
 
-.avatar-char:active {
-    transform: scale(0.95);
-}
 
 .floating-reaction {
     position: absolute;
