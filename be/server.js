@@ -36,28 +36,63 @@ app.set('io', io); // Make 'io' accessible in routes
 io.on('connection', (socket) => {
     console.log('Socket connected:', socket.id);
 
-    // Allow client to join a specific room channel
-    socket.on('join_room', (roomId) => {
+
+    socket.on('join_room', ({ roomId, userId }) => {
         socket.join(roomId);
-        console.log(`Socket ${socket.id} joined room ${roomId}`);
+
+
+        socket.data.roomId = roomId;
+        socket.data.userId = userId;
+
+        console.log(`Socket ${socket.id} (User: ${userId}) joined room ${roomId}`);
     });
+
     socket.on('send_reaction', ({ roomId, targetUserId, reaction }) => {
-        // Broadcast to everyone in the room (including sender)
         io.to(roomId).emit('reaction_received', { targetUserId, reaction });
     });
+
     socket.on('move_avatar', async ({ roomId, userId, x, y }) => {
         try {
             const updatedRoom = await RoomManager.moveAvatar(roomId, userId, x, y);
             if (updatedRoom) {
-                // Broadcast new positions to everyone
                 io.to(roomId).emit('room_update', updatedRoom.toJSON());
             }
         } catch (e) {
             console.error("Move error:", e);
         }
     });
-    socket.on('disconnect', () => {
-        // Handle disconnect if needed
+
+
+    socket.on('leave_room', async ({ roomId, userId }) => {
+        console.log(`User ${userId} leaving room ${roomId}`);
+        try {
+            const updatedRoom = await RoomManager.removeUser(roomId, userId);
+            socket.leave(roomId);
+
+            // Notify remaining users
+            if (updatedRoom) {
+                io.to(roomId).emit('room_update', updatedRoom.toJSON());
+            }
+        } catch (e) {
+            console.error("Error leaving room:", e);
+        }
+    });
+
+    socket.on('disconnect', async () => {
+        // Retrieve the data we saved during join
+        const { roomId, userId } = socket.data;
+
+        if (roomId && userId) {
+            console.log(`Socket ${socket.id} disconnected. Removing user ${userId} from room ${roomId}`);
+            try {
+                const updatedRoom = await RoomManager.removeUser(roomId, userId);
+                if (updatedRoom) {
+                    io.to(roomId).emit('room_update', updatedRoom.toJSON());
+                }
+            } catch (e) {
+                console.error("Disconnect cleanup error:", e);
+            }
+        }
     });
 });
 // --- Static Frontend ---

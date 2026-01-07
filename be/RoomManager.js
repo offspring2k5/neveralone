@@ -114,6 +114,24 @@ class RoomManager {
 
         return room;
     }
+    async removeUser(roomId, userId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null; // Room doesn't exist/expired
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        // Remove the user locally
+        room.removeUser(userId);
+
+        // Save updated state to Redis
+        await client.set(
+            keyRoom(roomId),
+            JSON.stringify(room.toJSON()),
+            { EX: 86400 }
+        );
+
+        return room;
+    }
 }
 
 module.exports = new RoomManager();

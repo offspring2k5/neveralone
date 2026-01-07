@@ -7,9 +7,17 @@ import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
 let countdownInterval = null;
 let socket = null;
 
+
+
 export async function loadRoomPage(roomData) {
     const app = document.getElementById('app');
-    // --- SOCKET SETUP ---
+    let myUser = {};
+    try {
+        const d = await me();
+        myUser = d.user;
+    } catch(e) {
+        console.error("Failed to load user:", e);
+    }
     // Initialize socket if it doesn't exist (window.io comes from the script tag)
     if (!socket) {
         console.log("Initializing Socket via ESM import...");
@@ -18,20 +26,25 @@ export async function loadRoomPage(roomData) {
 
     console.log("Socket Status:", socket ? "Active" : "Not Found");
     if (socket) {
-        // Tell server we are in this room ID
-        socket.emit('join_room', roomData.roomId);
+        // Now myUser.id is defined!
+        socket.emit('join_room', {
+            roomId: roomData.roomId,
+            userId: myUser.id
+        });
 
-        // Remove previous listener to avoid duplicates
         socket.off('room_update');
-
-        // Listen for updates
         socket.on('room_update', (updatedRoomData) => {
             console.log("Room update received:", updatedRoomData);
-            // Re-render the page with new data
             loadRoomPage(updatedRoomData);
         });
+
+        // Re-attach reaction listener
+        socket.off('reaction_received');
+        socket.on('reaction_received', ({ targetUserId, reaction }) => {
+            showReactionOnAvatar(targetUserId, reaction);
+        });
     }
-    // NEW: Listen for reactions from the server
+    // Listen for reactions from the server
     if (socket) {
         socket.off('reaction_received');
         socket.on('reaction_received', ({ targetUserId, reaction }) => {
@@ -45,10 +58,10 @@ export async function loadRoomPage(roomData) {
         const timerEl = document.querySelector('.mini-timer');
         if (!timerEl) return;
 
-        // 1. Calculate Total Time in MS
+        // Calculate Total Time in MS
         const totalDurationMs = (roomData.timerDuration || 25) * 60 * 1000;
 
-        // 2. Get time already passed in previous segments
+        // Get time already passed in previous segments
         const previouslyElapsed = roomData.elapsedTime || 0;
 
         // Helper function to update the text
@@ -60,14 +73,14 @@ export async function loadRoomPage(roomData) {
             return totalSeconds <= 0;
         };
 
-        // Case A: Timer is PAUSED
+        //  Timer is PAUSED
         if (!roomData.timerRunning) {
             const remaining = totalDurationMs - previouslyElapsed;
             updateDisplay(remaining);
             return;
         }
 
-        // Case B: Timer is RUNNING
+        //  Timer is RUNNING
         const startTime = new Date(roomData.timerStartedAt).getTime();
 
         countdownInterval = setInterval(() => {
@@ -95,21 +108,16 @@ export async function loadRoomPage(roomData) {
         loadHomePage();
     }
 
-    // 1. Get Me (to identify which avatar is mine)
-    let myUser = {};
-    try { const d = await me(); myUser = d.user; } catch(e){}
 
-    // 2. Theme Logic... (Same as before)
     document.body.className = ''; 
     if (roomData.settings?.theme) document.body.classList.add(`theme-${roomData.settings.theme}`);
 
-    // 3. Find MY current task from the participant list
-    // roomData.activeParticipants comes from the backend now
+
     const participants = roomData.activeParticipants || [];
     const myParticipantEntry = participants.find(p => p.userId === myUser.id) || {};
     const myTask = myParticipantEntry.currentTask || "Focusing";
 
-    // 4. Render HTML
+    // Render HTML
     app.innerHTML = `
         <div class="room-scene">
             <div class="room-hud">
@@ -163,7 +171,9 @@ export async function loadRoomPage(roomData) {
 
     // Leave Logic...
     document.getElementById('btnLeave').onclick = () => {
-        if(socket) socket.emit('leave_room', roomData.roomId); // Optional cleanup
+        if(socket) {
+            socket.emit('leave_room', { roomId: roomData.roomId, userId: myUser.id });
+        }
         loadHomePage();
     };
 }
