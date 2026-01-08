@@ -23,8 +23,24 @@ const avatarImg = document.getElementById("avatarImg");
 const avatarFallback = document.getElementById("avatarFallback");
 const avatarForm = document.getElementById("avatarForm");
 const avatarFile = document.getElementById("avatarFile");
+const slot1 = document.getElementById("slot1");
+const slot2 = document.getElementById("slot2");
+const emojiGrid = document.getElementById("emojiGrid");
+const mashupPreview = document.getElementById("mashupPreview");
+const mashupPlaceholder = document.getElementById("mashupPlaceholder");
+const saveMashupBtn = document.getElementById("saveMashupBtn");
 
+// --- EMOJI LIST (Common supported emojis) ---
+const EMOJIS = [
+    "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🤭","🤫","🤥","😶","😐","😑","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🙈","🙉","🙊","💋","💌","💘","💝","💖","💗","💓","💞","💕","💟","❣️","💔","❤️","🧡","💛","💚","💙","💜","🤎","🖤","🤍","💯","💢","💥","💫","💦","💨","🕳️","💣","💬","👁️‍🗨️","🗨️","🗯️","💭","💤"
+];
 let currentUser = null; // <- damit wir email/displayName auch später haben
+
+let selection = {
+    left: "😀",
+    right: null,
+    activeSlot: 1 // 1 or 2
+};
 
 function setMsg(type, text) {
     profileMsg.className = `toast ${type}`;
@@ -100,6 +116,87 @@ async function loadProfile() {
 
         setMsg("error", err?.message || "Fehler beim Laden des Profils.");
     }
+}
+
+function initEmojiKitchen() {
+    // 1. Render Grid
+    emojiGrid.innerHTML = "";
+    EMOJIS.forEach(emoji => {
+        const btn = document.createElement("div");
+        btn.className = "emoji-btn";
+        btn.textContent = emoji;
+        btn.onclick = () => selectEmoji(emoji);
+        emojiGrid.appendChild(btn);
+    });
+
+    // 2. Slot Click Handlers
+    slot1.onclick = () => setActiveSlot(1);
+    slot2.onclick = () => setActiveSlot(2);
+
+    // 3. Initial State
+    updateKitchenUI();
+}
+
+function setActiveSlot(num) {
+    selection.activeSlot = num;
+    updateKitchenUI();
+}
+
+function selectEmoji(emoji) {
+    if (selection.activeSlot === 1) {
+        selection.left = emoji;
+        // Auto-advance to slot 2 if it's empty
+        if (!selection.right) selection.activeSlot = 2;
+    } else {
+        selection.right = emoji;
+    }
+    updateKitchenUI();
+    updatePreview();
+}
+
+function updateKitchenUI() {
+    // Update Slots Visuals
+    slot1.textContent = selection.left || "?";
+    slot2.textContent = selection.right || "?";
+
+    if (selection.activeSlot === 1) {
+        slot1.classList.add("selected");
+        slot2.classList.remove("selected");
+    } else {
+        slot1.classList.remove("selected");
+        slot2.classList.add("selected");
+    }
+}
+
+async function updatePreview() {
+    if (!selection.left || !selection.right) {
+        mashupPreview.style.display = "none";
+        mashupPlaceholder.style.display = "block";
+        saveMashupBtn.disabled = true;
+        return;
+    }
+
+    // Construct API URL
+    // API Format: https://emojik.vercel.app/s/<e1>_<e2>?size=128
+    const url = `https://emojik.vercel.app/s/${selection.left}_${selection.right}?size=128`;
+
+    mashupPreview.style.display = "none";
+    mashupPlaceholder.style.display = "block";
+    saveMashupBtn.disabled = true;
+
+    // Test load image
+    const tempImg = new Image();
+    tempImg.onload = () => {
+        mashupPreview.src = url;
+        mashupPreview.style.display = "block";
+        mashupPlaceholder.style.display = "none";
+        saveMashupBtn.disabled = false; // Enable save only if valid
+    };
+    tempImg.onerror = () => {
+        // Some combinations don't exist
+        setMsg("error", "Diese Kombination ist leider nicht verfügbar.");
+    };
+    tempImg.src = url;
 }
 
 logoutBtn?.addEventListener("click", () => {
@@ -204,5 +301,59 @@ avatarForm?.addEventListener("submit", async (e) => {
         setMsg("error", err?.message || "Fehler beim Avatar-Upload.");
     }
 });
+
+saveMashupBtn?.addEventListener("click", async () => {
+    if (!mashupPreview.src) return;
+
+    const token = getToken();
+    if (!token) return window.location.replace("/index.html");
+
+    setMsg("ok", "Mashup wird gespeichert...");
+    saveMashupBtn.disabled = true;
+
+    try {
+        // 1. Fetch the image blob from the external API
+        const resp = await fetch(mashupPreview.src);
+        if (!resp.ok) throw new Error("Konnte Bild nicht laden.");
+        const blob = await resp.blob();
+
+        // 2. Create FormData for your existing backend endpoint
+        const fd = new FormData();
+        // Backend expects 'avatar' field and checks mime type
+        fd.append("avatar", blob, `mashup_${Date.now()}.png`);
+
+        // 3. Upload to your Backend
+        const uploadRes = await fetch("/api/auth/avatar", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+        });
+
+        const data = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) throw new Error(data?.error || "Upload fehlgeschlagen");
+
+        // 4. Update UI
+        if (data.user?.avatarUrl) {
+            const url = data.user.avatarUrl + `?v=${Date.now()}`;
+            currentUser = { ...(currentUser || {}), avatarUrl: url };
+            renderAvatar(currentUser);
+        }
+
+        setMsg("ok", "Emoji-Avatar erfolgreich gespeichert!");
+
+        // Reset Logic (Optional)
+        selection.right = null;
+        selection.activeSlot = 2;
+        updateKitchenUI();
+        updatePreview();
+
+    } catch (err) {
+        console.error("MASHUP SAVE ERROR:", err);
+        setMsg("error", err.message || "Fehler beim Speichern.");
+        saveMashupBtn.disabled = false;
+    }
+});
+
+initEmojiKitchen();
 
 loadProfile();
