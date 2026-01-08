@@ -302,7 +302,7 @@ function openReactionMenu(x, y, targetUserId, roomId) {
     menu.style.left = x + 'px';
     menu.style.top = (y - 50) + 'px'; // Show slightly above cursor
 
-    const smilies = ['🙂', '☹️', '❤️', '👍', '👎'];
+    const smilies = ['🙂', '☹️', '❤️', '👍', '👎','🤣','💀','✨','🙀','😭','🦄','🦐'];
 
     smilies.forEach(emoji => {
         const span = document.createElement('span');
