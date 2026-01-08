@@ -55,6 +55,47 @@
             <div class="row" style="gap:12px;margin-top:12px;align-items:flex-start;flex-direction:column;">
                 <div><span class="muted">Erstellt am:</span> <b id="pCreatedAt">…</b></div>
             </div>
+            <form class="form" id="avatarForm" style="margin-top:10px;">
+                <label>Avatar (PNG/JPG/WEBP, max 2MB)
+                    <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" />
+                </label>
+                <div class="row">
+                    <button class="btn" type="submit">Upload speichern</button>
+                </div>
+            </form>
+
+            <div class="emoji-section">
+                <h3>Emoji Kitchen 🧑‍🍳</h3>
+                <p class="muted" style="margin-top:4px; font-size:13px;">
+                    Mixe zwei Emojis zu einem neuen Avatar!
+                </p>
+
+                <div class="mashup-controls">
+                    <div id="slot1" class="mashup-slot selected" title="Emoji 1 wählen">?</div>
+                    <div style="font-size:18px; color:var(--muted);">+</div>
+                    <div id="slot2" class="mashup-slot" title="Emoji 2 wählen">?</div>
+
+                    <div style="font-size:18px; color:var(--muted); margin:0 4px;">=</div>
+
+                    <div class="mashup-result">
+                        <img id="mashupPreview" style="display:none;" alt="Mashup" />
+                        <span id="mashupPlaceholder" class="muted" style="font-size:24px;">?</span>
+                    </div>
+                </div>
+
+                <div id="emojiGrid" class="emoji-grid"></div>
+
+                <div class="row" style="margin-top:12px; justify-content:center;">
+                    <button id="saveMashupBtn" class="btn primary" type="button" disabled>
+                        Als Avatar speichern
+                    </button>
+                </div>
+            </div>
+
+            <div class="row" style="gap:12px;margin-top:24px;align-items:flex-start;flex-direction:column;">
+                <div><span class="muted">Erstellt am:</span> <b id="pCreatedAt">…</b></div>
+            </div>
+        </div>
         </div>
 
         <!-- Rechts -->

@@ -5850,3 +5850,15 @@ $4
 PXAT
 $13
 1767982246834
+*2
+$6
+SELECT
+$1
+0
+*3
+$3
+SET
+$41
+user:48324cca-9f72-4885-b32a-d31f263193a8
+$315
+{"id":"48324cca-9f72-4885-b32a-d31f263193a8","email":"offspring@aon.at","passwordHash":"$2b$10$Afl2Qdp172XiyaImG/TAmOvw/NT4riQyCvVFV/wjn6CzQ6EQQpFci","createdAt":"2025-12-29T13:52:34.731Z","displayName":"Florian","points":0,"avatarUrl":"/user_uploads/avatars/48324cca-9f72-4885-b32a-d31f263193a8-1767900829958.png"}
