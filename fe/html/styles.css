@@ -887,3 +887,124 @@ body.theme-default .room-scene {
     background: #ff6b6b;
     color: white;
 }
+.task-list-panel {
+    position: absolute;
+    top: 100px;
+    right: 20px;
+    width: 220px;
+    background: rgba(15, 23, 48, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 16px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    pointer-events: auto; /* Ensure clickable */
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.task-list-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 1px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.task-list-item {
+    background: rgba(255,255,255,0.05);
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+/* --- Floating Room Tasks --- */
+.room-task {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.15); /* Semi-transparent */
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 10px 14px;
+    width: 160px;
+    color: white;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+
+    transform: translate(-50%, -50%); /* Center anchor */
+    cursor: default;
+    z-index: 5; /* Below avatars (z-index 10) */
+
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.room-task.draggable {
+    cursor: grab;
+    border-color: rgba(122,167,255,0.5);
+}
+.room-task.draggable:active {
+    cursor: grabbing;
+    z-index: 100; /* Bring to front when dragging */
+}
+
+/* Checkbox Style */
+.task-checkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+    display:grid;
+    place-items:center;
+    transition: background 0.2s;
+}
+.task-checkbox:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+/* Add Task Button (Bottom Left) */
+.btn-add-task {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 28px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+}
+.btn-add-task:hover { transform: scale(1.1); }
+.btn-add-task:active { transform: scale(0.95); }
+
+/* Sparkle Animation */
+.sparkle {
+    position: absolute;
+    pointer-events: none;
+    animation: sparkleAnim 0.8s ease-out forwards;
+    font-size: 20px;
+    z-index: 200;
+}
+@keyframes sparkleAnim {
+    0% { transform: scale(0) rotate(0deg); opacity: 1; }
+    100% { transform: scale(1.5) rotate(180deg); opacity: 0; }
+}

@@ -118,6 +118,30 @@ io.on('connection', (socket) => {
             }
         }
     });
+    socket.on('create_task', async ({ roomId, userId, text }) => {
+        try {
+            const updatedRoom = await RoomManager.createTask(roomId, userId, text);
+            if (updatedRoom) io.to(roomId).emit('room_update', updatedRoom.toJSON());
+        } catch (e) { console.error("Create task error", e); }
+    });
+
+    socket.on('move_task', async ({ roomId, taskId, x, y }) => {
+        try {
+            // We broadcast full update for consistency (or you could emit specific 'task_moved' for performance)
+            const updatedRoom = await RoomManager.moveTask(roomId, taskId, x, y);
+            if (updatedRoom) io.to(roomId).emit('room_update', updatedRoom.toJSON());
+        } catch (e) { console.error("Move task error", e); }
+    });
+
+    socket.on('complete_task', async ({ roomId, taskId }) => {
+        try {
+            const updatedRoom = await RoomManager.completeTask(roomId, taskId);
+            // 1. Tell everyone a task was finished (for sparkle effect)
+            io.to(roomId).emit('task_completed_anim', taskId);
+            // 2. Update room data (remove task)
+            if (updatedRoom) io.to(roomId).emit('room_update', updatedRoom.toJSON());
+        } catch (e) { console.error("Complete task error", e); }
+    });
 
 });
 // --- Static Frontend ---

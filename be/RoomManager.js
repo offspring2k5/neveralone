@@ -152,6 +152,64 @@ class RoomManager {
 
         return room;
     }
+    async resetTimer(roomId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) throw new Error("Room not found");
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        room.resetTimer();
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+
+    // --- NEW: Update Settings (Duration) ---
+    async updateSettings(roomId, { duration }) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) throw new Error("Room not found");
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        if (duration) {
+            room.setTimerDuration(duration);
+        }
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+    async createTask(roomId, userId, text) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+        room.addTask(userId, text);
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+
+    async moveTask(roomId, taskId, x, y) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+        room.updateTaskPosition(taskId, x, y);
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+
+    async completeTask(roomId, taskId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+        room.completeTask(taskId);
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
 }
 
 module.exports = new RoomManager();

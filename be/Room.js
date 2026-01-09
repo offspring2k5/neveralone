@@ -46,6 +46,7 @@ class Room {
         if (_autoStartTimer && !this._timerRunning) {
             this.startTimer(this._host.userId);
         }
+        this._tasks = [];
     }
 
     generateCode() {
@@ -74,6 +75,7 @@ class Room {
                 data.settings.autoStartTimer
             );
         }
+        room._tasks = data.tasks || [];
 
         return room;
     }
@@ -137,6 +139,48 @@ class Room {
     getHost() { return this._host; }
     getRoomSettings() { return this._roomSettings; }
     getActiveParticipants() { return this._activeParticipants; }
+    resetTimer() {
+        this._timerRunning = false;
+        this._timerStartedAt = null;
+        this._elapsedTime = 0;
+    }
+
+    // --- NEW: Change the duration (in minutes) ---
+    setTimerDuration(minutes) {
+        const dura = parseInt(minutes);
+        if (!isNaN(dura) && dura > 0) {
+            this._timerDuration = dura;
+            // --- NEW: Reset the timer so the new duration applies immediately ---
+            this.resetTimer();
+        }
+    }
+    addTask(userId, text) {
+        const newTask = {
+            id: randomUUID(),
+            ownerId: userId,
+            text: text,
+            // Random default position near center
+            x: 40 + Math.random() * 20,
+            y: 40 + Math.random() * 20,
+            completed: false,
+            createdAt: Date.now()
+        };
+        this._tasks.push(newTask);
+        return newTask;
+    }
+
+    updateTaskPosition(taskId, x, y) {
+        const task = this._tasks.find(t => t.id === taskId);
+        if (task) {
+            task.x = x;
+            task.y = y;
+        }
+    }
+
+    completeTask(taskId) {
+        // We actually remove it, but you could mark it completed if you wanted a history
+        this._tasks = this._tasks.filter(t => t.id !== taskId);
+    }
 
     toJSON() {
         return {
@@ -149,7 +193,8 @@ class Room {
             timerDuration: this._timerDuration,
             timerStartedAt: this._timerStartedAt,
             timerRunning: this._timerRunning,
-            elapsedTime: this._elapsedTime
+            elapsedTime: this._elapsedTime,
+            tasks: this._tasks
         };
     }
 }

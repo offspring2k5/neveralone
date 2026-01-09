@@ -1,5 +1,5 @@
 /**
- * fe/room.page.js
+ * fe/js/room.page.js
  */
 import { loadHomePage } from './home.page.js';
 import { me } from './auth.js';
@@ -25,33 +25,64 @@ export async function loadRoomPage(roomData) {
     }
 
     if (socket) {
+        // Join Room
         socket.emit('join_room', { roomId: roomData.roomId, userId: myUser.id });
 
+        // Room Update Listener
         socket.off('room_update');
         socket.on('room_update', (updatedRoomData) => {
             console.log("Room update received:", updatedRoomData);
             loadRoomPage(updatedRoomData);
         });
 
-        // Listen for reactions
+        // Reaction Listener
         socket.off('reaction_received');
         socket.on('reaction_received', ({ targetUserId, reaction }) => {
             showReactionOnAvatar(targetUserId, reaction);
         });
 
-        // NEW: Listen for Kicked Notification
+        // Kick Listener
         socket.off('kicked_notification');
         socket.on('kicked_notification', (kickedId) => {
             if (kickedId === myUser.id) {
                 alert("You have been kicked from the room.");
-                if(socket) socket.disconnect(); // Clean disconnect
-                // Reload page to reset state/socket fully or just load home
+                if(socket) socket.disconnect();
                 window.location.href = '/';
             }
         });
+
+        // Sparkle Animation Listener (Task Complete)
+        socket.off('task_completed_anim');
+        socket.on('task_completed_anim', (taskId) => {
+            playSparkle(taskId);
+        });
     }
 
+    // --- IDENTIFY HOST ---
+    const isHost = (myUser.id === roomData.host.userId);
+
+
     // --- TIMER LOGIC ---
+    function updateButtonState(isRunning, isFinished) {
+        if (!isHost) return;
+
+        const btnStart = document.getElementById('btnStartTimer');
+        const btnStop = document.getElementById('btnStopTimer');
+        const btnReset = document.getElementById('btnResetTimer');
+
+        if (isRunning && !isFinished) {
+            // State: RUNNING
+            if(btnStart) btnStart.style.display = 'none';
+            if(btnStop) btnStop.style.display = 'inline-block';
+            if(btnReset) btnReset.style.display = 'none';
+        } else {
+            // State: PAUSED or FINISHED
+            if(btnStart) btnStart.style.display = 'inline-block';
+            if(btnStop) btnStop.style.display = 'none';
+            if(btnReset) btnReset.style.display = 'inline-block';
+        }
+    }
+
     function startCountdown(roomData) {
         if (countdownInterval) clearInterval(countdownInterval);
 
@@ -69,8 +100,12 @@ export async function loadRoomPage(roomData) {
             return totalSeconds <= 0;
         };
 
+        // Initial Button State
+        const initialRemaining = totalDurationMs - previouslyElapsed;
+        updateButtonState(roomData.timerRunning, initialRemaining <= 0);
+
         if (!roomData.timerRunning) {
-            updateDisplay(totalDurationMs - previouslyElapsed);
+            updateDisplay(initialRemaining);
             return;
         }
 
@@ -81,22 +116,25 @@ export async function loadRoomPage(roomData) {
             const totalElapsed = previouslyElapsed + currentSegment;
             const remaining = totalDurationMs - totalElapsed;
 
-            if (updateDisplay(remaining)) {
+            const isFinished = updateDisplay(remaining);
+
+            if (isFinished) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
                 onTimerFinished();
             }
         }, 1000);
 
-        // Initial update
         updateDisplay(totalDurationMs - (previouslyElapsed + (Date.now() - startTime)));
     }
 
     function onTimerFinished() {
-        // alert("Time is up!");
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+        audio.play().catch(e => console.log("Audio blocked:", e));
+        updateButtonState(false, true);
     }
 
-    // --- RENDER ROOM ---
+    // --- RENDER HTML ---
     document.body.className = '';
     if (roomData.settings?.theme) document.body.classList.add(`theme-${roomData.settings.theme}`);
 
@@ -112,7 +150,9 @@ export async function loadRoomPage(roomData) {
                 </div>
                 
                 <div class="hud-timer-box">
-                    <div class="mini-timer">${roomData.timerDuration || 25}:00</div>
+                    <div class="mini-timer" ${isHost ? 'style="cursor:pointer" title="Click to Change Duration"' : ''}>
+                        ${roomData.timerDuration || 25}:00
+                    </div>
                     <div class="mini-task">My Goal: ${myTask}</div>
                 </div>
             </div>
@@ -122,37 +162,46 @@ export async function loadRoomPage(roomData) {
                 <div id="userListContainer"></div>
             </div>
 
-            <div class="room-floor" id="avatarStage"></div>
+            <div class="task-list-panel">
+                <div class="task-list-title">Tasks</div>
+                <div id="taskListContainer"></div>
+            </div>
+
+            <div class="room-floor" id="avatarStage">
+                <div id="taskLayer"></div> </div>
 
             <div class="room-controls">
-                <button id="btnStartTimer" class="btn primary">Start Timer</button>
-                <button id="btnStopTimer" class="btn secondary">Stop Timer</button>
-                <button id="btnLeave" class="btn logout">Exit Room</button>
+                <button id="btnStartTimer" class="btn primary">Start</button>
+                <button id="btnStopTimer" class="btn secondary">Pause</button>
+                
+                ${isHost ? `<button id="btnResetTimer" class="btn secondary" style="border-color:#ff9f43; color:#ff9f43;">Reset</button>` : ''}
+                
+                <button id="btnLeave" class="btn logout">Exit</button>
             </div>
+
+            <button class="btn-add-task" id="btnAddTask" title="Add Task">+</button>
         </div>
     `;
 
-    // Render Components
+    // --- RENDER COMPONENTS ---
     renderAvatars(participants, roomData.roomId, myUser.id);
     renderUserList(participants, roomData.host.userId, myUser.id);
+    renderTasks(roomData.tasks || [], participants, roomData.roomId, myUser.id);
 
-    // Bind Buttons
-    const btnStart = document.getElementById('btnStartTimer');
-    const btnStop = document.getElementById('btnStopTimer');
+    // --- BIND BUTTONS ---
     const token = localStorage.getItem('token');
 
-    if(btnStart) {
-        btnStart.disabled = !!roomData.timerRunning;
+    // Timer Buttons
+    const btnStart = document.getElementById('btnStartTimer');
+    const btnStop = document.getElementById('btnStopTimer');
+
+    if(btnStart && btnStop) {
         btnStart.onclick = async () => {
             await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
         };
-    }
-
-    if(btnStop) {
-        btnStop.disabled = !roomData.timerRunning;
         btnStop.onclick = async () => {
             await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
                 method: 'POST',
@@ -161,6 +210,50 @@ export async function loadRoomPage(roomData) {
         };
     }
 
+    // Reset Button
+    const btnReset = document.getElementById('btnResetTimer');
+    if (btnReset) {
+        btnReset.onclick = async () => {
+            if(!confirm("Reset timer to 00:00?")) return;
+            await fetch(`/api/rooms/${roomData.roomId}/timer/reset`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        };
+    }
+
+    // Edit Timer Duration
+    if (isHost) {
+        const timerDisplay = document.querySelector('.mini-timer');
+        if(timerDisplay) {
+            timerDisplay.onclick = async () => {
+                const newTime = prompt("Set timer duration (minutes):", roomData.timerDuration || 25);
+                if (newTime && !isNaN(newTime)) {
+                    await fetch(`/api/rooms/${roomData.roomId}/settings`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ duration: newTime })
+                    });
+                }
+            };
+        }
+    }
+
+    // Add Task Button
+    const btnAdd = document.getElementById('btnAddTask');
+    if (btnAdd) {
+        btnAdd.onclick = () => {
+            const text = prompt("What is your task?");
+            if (text && text.trim() !== "") {
+                socket.emit('create_task', { roomId: roomData.roomId, userId: myUser.id, text: text.trim() });
+            }
+        };
+    }
+
+    // Leave Button
     document.getElementById('btnLeave').onclick = () => {
         if(socket) socket.emit('leave_room', { roomId: roomData.roomId, userId: myUser.id });
         loadHomePage();
@@ -169,99 +262,168 @@ export async function loadRoomPage(roomData) {
     // Start Timer Display
     startCountdown(roomData);
 
-    // --- DEFINE KICK FUNCTION (Inside scope to access roomData) ---
+    // Expose Kick Function globally
     window.kickUser = (targetUserId) => {
         if(!confirm("Are you sure you want to remove this user?")) return;
-
         if (socket) {
             socket.emit('kick_user', {
                 roomId: roomData.roomId,
                 targetUserId: targetUserId,
-                token: token // Send token for verification
+                token: token
             });
         }
     };
 }
 
+
 // --- HELPER FUNCTIONS ---
 
-// NEW: Render User List with Kick Buttons
+/** Render Users in Left Panel */
 function renderUserList(users, hostId, myId) {
     const container = document.getElementById('userListContainer');
     if (!container) return;
-
     container.innerHTML = users.map(u => {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
-
-        // Show kick button IF: I am the host AND target is not me
-        const iAmHost = (myId === hostId);
-        const canKick = iAmHost && !isMe;
-
+        const canKick = (myId === hostId) && !isMe;
         return `
             <div class="user-list-item">
                 <div class="ul-avatar" style="background-image: url('${img}')"></div>
                 <div class="ul-info">
-                    <div class="ul-name">
-                        ${u.username} ${isMe ? '(You)' : ''}
-                    </div>
-                    <div class="ul-role">
-                        ${isTargetHost ? '👑 Host' : 'Participant'}
-                    </div>
+                    <div class="ul-name">${u.username} ${isMe ? '(You)' : ''}</div>
+                    <div class="ul-role">${isTargetHost ? '👑 Host' : 'Participant'}</div>
                 </div>
-                ${canKick ? `
-                    <div class="btn-kick" 
-                         title="Remove User" 
-                         onclick="kickUser('${u.userId}')">
-                         ✕
-                    </div>
-                ` : ''}
+                ${canKick ? `<div class="btn-kick" onclick="kickUser('${u.userId}')">✕</div>` : ''}
             </div>
         `;
     }).join('');
 }
 
+/** Render Tasks (Sticky Notes + Right List) */
+function renderTasks(tasks, participants, roomId, myUserId) {
+    // 1. Right Side List
+    const listContainer = document.getElementById('taskListContainer');
+    if (listContainer) {
+        if (!tasks || tasks.length === 0) {
+            listContainer.innerHTML = '<div style="color:var(--muted); font-size:0.8em; text-align:center;">No active tasks</div>';
+        } else {
+            listContainer.innerHTML = tasks.map(t => {
+                const owner = participants.find(p => p.userId === t.ownerId);
+                const ownerName = owner ? owner.username : 'Unknown';
+                return `
+                    <div class="task-list-item">
+                        <div style="flex:1;">
+                            <div style="font-weight:bold;">${t.text}</div>
+                            <div style="font-size:0.7em; color:var(--muted);">${ownerName}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // 2. Floating Room Tasks
+    const taskLayer = document.getElementById('taskLayer');
+    if (!taskLayer) return;
+
+    taskLayer.innerHTML = ''; // Clear current
+
+    if(tasks) {
+        tasks.forEach(t => {
+            const isMine = t.ownerId === myUserId;
+
+            const el = document.createElement('div');
+            el.className = `room-task ${isMine ? 'draggable' : ''}`;
+            el.id = `task-${t.id}`;
+            el.style.left = t.x + '%';
+            el.style.top = t.y + '%';
+
+            el.innerHTML = `
+                ${isMine ? `<div class="task-checkbox" title="Complete Task"></div>` : ''}
+                <div>${t.text}</div>
+            `;
+
+            if (isMine) {
+                // Checkbox Click
+                const cb = el.querySelector('.task-checkbox');
+                if(cb) {
+                    cb.onclick = (e) => {
+                        e.stopPropagation();
+                        socket.emit('complete_task', { roomId, taskId: t.id });
+                    };
+                }
+                // Drag Logic
+                makeTaskDraggable(el, roomId, t.id);
+            }
+
+            taskLayer.appendChild(el);
+        });
+    }
+}
+
+/** Sparkle Animation */
+function playSparkle(taskId) {
+    const el = document.getElementById(`task-${taskId}`);
+    if (el) {
+        const rect = el.getBoundingClientRect();
+        for(let i=0; i<8; i++) {
+            const s = document.createElement('div');
+            s.textContent = '✨';
+            s.className = 'sparkle';
+            // Random position around the task
+            s.style.left = (rect.left + Math.random() * rect.width) + 'px';
+            s.style.top = (rect.top + Math.random() * rect.height) + 'px';
+            document.body.appendChild(s);
+            setTimeout(() => s.remove(), 800);
+        }
+    }
+}
+
+/** Render Avatars on Floor */
 function renderAvatars(users, roomId, myUserId) {
     const stage = document.getElementById('avatarStage');
     if(!stage) return;
+    // We only want to clear avatars, NOT the task layer.
+    // But since renderAvatars usually runs alongside renderTasks,
+    // we can clear safely IF we re-append taskLayer or structure differently.
+    // BETTER: Only remove .avatar-char elements to avoid killing the task layer
+    stage.querySelectorAll('.avatar-char').forEach(e => e.remove());
 
-    stage.innerHTML = users.map(u => {
+    users.forEach(u => {
         const img = u.avatarUrl || 'https://ui-avatars.com/api/?background=random&name=' + (u.username || 'User');
         const task = u.currentTask || "Working";
         const posX = u.x !== undefined ? u.x : 50;
         const posY = u.y !== undefined ? u.y : 50;
 
-        return `
-            <div class="avatar-char" 
-                 data-userid="${u.userId}"
-                 style="left: ${posX}%; top: ${posY}%;">
-                <div class="char-body" style="background-image: url('${img}');"></div>
-                <div class="char-name">
-                    ${u.username} <br>
-                    <span style="font-size:0.7em; opacity:0.8; font-weight:normal;">${task}</span>
-                </div>
+        const el = document.createElement('div');
+        el.className = 'avatar-char';
+        el.setAttribute('data-userid', u.userId);
+        el.style.left = posX + '%';
+        el.style.top = posY + '%';
+        el.innerHTML = `
+            <div class="char-body" style="background-image: url('${img}');"></div>
+            <div class="char-name">
+                ${u.username} <br>
+                <span style="font-size:0.7em; opacity:0.8; font-weight:normal;">${task}</span>
             </div>
         `;
-    }).join('');
 
-    document.querySelectorAll('.avatar-char').forEach(el => {
-        const targetUserId = el.getAttribute('data-userid');
-        const isMe = (targetUserId === myUserId);
-
+        const isMe = (u.userId === myUserId);
         el.onclick = (e) => {
             if (isDragOccurred) return;
-            if (isMe) return; // No self-reactions
+            if (isMe) return;
             e.stopPropagation();
-            openReactionMenu(e.clientX, e.clientY, targetUserId, roomId);
+            openReactionMenu(e.clientX, e.clientY, u.userId, roomId);
         };
 
         if (isMe) makeDraggable(el, roomId, myUserId);
+        stage.appendChild(el);
     });
 }
 
+/** Avatar Drag Logic */
 let isDragOccurred = false;
-
 function makeDraggable(el, roomId, userId) {
     let startX, startY, initialLeft, initialTop;
     const stage = document.getElementById('avatarStage');
@@ -286,7 +448,6 @@ function makeDraggable(el, roomId, userId) {
         const percentX = (dx / stageRect.width) * 100;
         const percentY = (dy / stageRect.height) * 100;
 
-        // Clamp to screen (5% to 95%)
         let newLeft = Math.max(5, Math.min(95, initialLeft + percentX));
         let newTop = Math.max(5, Math.min(95, initialTop + percentY));
 
@@ -306,6 +467,52 @@ function makeDraggable(el, roomId, userId) {
     }
 }
 
+/** Task Drag Logic */
+function makeTaskDraggable(el, roomId, taskId) {
+    let startX, startY, initialLeft, initialTop;
+    const stage = document.getElementById('avatarStage');
+    let isDrag = false;
+
+    el.onmousedown = (e) => {
+        e.preventDefault();
+        isDrag = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialLeft = parseFloat(el.style.left);
+        initialTop = parseFloat(el.style.top);
+        document.onmousemove = onMouseMove;
+        document.onmouseup = onMouseUp;
+    };
+
+    function onMouseMove(e) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isDrag = true;
+
+        const stageRect = stage.getBoundingClientRect();
+        const percentX = (dx / stageRect.width) * 100;
+        const percentY = (dy / stageRect.height) * 100;
+
+        let newLeft = Math.max(0, Math.min(95, initialLeft + percentX));
+        let newTop = Math.max(0, Math.min(95, initialTop + percentY));
+
+        el.style.left = newLeft + '%';
+        el.style.top = newTop + '%';
+    }
+
+    function onMouseUp(e) {
+        document.onmousemove = null;
+        document.onmouseup = null;
+
+        if (isDrag && socket) {
+            const finalLeft = parseFloat(el.style.left);
+            const finalTop = parseFloat(el.style.top);
+            socket.emit('move_task', { roomId, taskId, x: finalLeft, y: finalTop });
+        }
+    }
+}
+
+/** Reaction Menu (Smart Position) */
 function openReactionMenu(x, y, targetUserId, roomId) {
     const existing = document.getElementById('reactionMenu');
     if (existing) existing.remove();
@@ -314,8 +521,6 @@ function openReactionMenu(x, y, targetUserId, roomId) {
     menu.id = 'reactionMenu';
     menu.className = 'reaction-menu';
 
-    // --- KEY FIX: Hide & Disable Animation for Measuring ---
-    // We must measure the menu at FULL size (scale 1) to know if it fits.
     menu.style.visibility = 'hidden';
     menu.style.animation = 'none';
 
@@ -333,48 +538,27 @@ function openReactionMenu(x, y, targetUserId, roomId) {
 
     document.body.appendChild(menu);
 
-    // 1. Measure the Menu (Now it is full size)
     const rect = menu.getBoundingClientRect();
     const screenW = window.innerWidth;
     const screenH = window.innerHeight;
     const margin = 20;
 
     let finalX = x;
-    let finalY = y - 50; // Default: above cursor
+    let finalY = y - 50;
 
-    // 2. Adjust Horizontal Position
-    // If it goes off the RIGHT edge:
-    if (finalX + rect.width > screenW - margin) {
-        finalX = screenW - rect.width - margin;
-    }
-    // If it goes off the LEFT edge (e.g. on mobile):
-    if (finalX < margin) {
-        finalX = margin;
-    }
+    if (finalX + rect.width > screenW - margin) finalX = screenW - rect.width - margin;
+    if (finalX < margin) finalX = margin;
 
-    // 3. Adjust Vertical Position
-    // If it goes off the TOP edge:
-    if (finalY < margin) {
-        finalY = y + 20; // Flip to below the cursor
-    }
-    // If it goes off the BOTTOM edge:
-    if (finalY + rect.height > screenH - margin) {
-        finalY = screenH - rect.height - margin;
-    }
+    if (finalY < margin) finalY = y + 20;
+    if (finalY + rect.height > screenH - margin) finalY = screenH - rect.height - margin;
 
-    // 4. Apply Calculated Position
     menu.style.left = finalX + 'px';
     menu.style.top = finalY + 'px';
 
-    // --- RESTORE ANIMATION ---
-    // Force a browser reflow (read a property) so the 'none' animation applies immediately
     void menu.offsetWidth;
-
-    // Now re-enable the CSS animation and show the menu
     menu.style.animation = '';
     menu.style.visibility = '';
 
-    // 5. Cleanup Listener
     const closeMenu = () => {
         if (menu.parentNode) menu.remove();
         document.removeEventListener('click', closeMenu);
@@ -382,6 +566,7 @@ function openReactionMenu(x, y, targetUserId, roomId) {
     setTimeout(() => document.addEventListener('click', closeMenu), 10);
 }
 
+/** Show Reaction Bubble */
 function showReactionOnAvatar(userId, emoji) {
     const avatarEl = document.querySelector(`.avatar-char[data-userid="${userId}"]`);
     if (!avatarEl) return;
