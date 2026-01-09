@@ -122,5 +122,34 @@ router.post('/:roomId/timer/stop', requireAuth, async (req, res) => {
         res.status(400).json({ error: e.message });
     }
 });
+router.post('/:roomId/timer/reset', requireAuth, async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const room = await RoomManager.resetTimer(roomId);
+
+        // Notify everyone
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
+
+        res.json({ success: true, ...room.toJSON() });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+// --- NEW: Update Settings (Change Time) ---
+router.put('/:roomId/settings', requireAuth, async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const { duration } = req.body; // e.g. { duration: 50 }
+
+        const room = await RoomManager.updateSettings(roomId, { duration });
+
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
+
+        res.json({ success: true, ...room.toJSON() });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
 
 module.exports = router;
