@@ -1,39 +1,52 @@
 /**
- * fe/home.page.js
- * Home Screen (geschützt).
- * - Lädt Userdaten via /api/auth/me
- * - Zeigt Avatar, DisplayName, Points
- */
-/**
- * fe/home.page.js
- * Home Screen + Room Creation/Joining Logic
- */
-
-/**
- * fe/home.page.js
- * Home Screen + Room Creation/Joining Logic
- */
-
-/**
- * fe/home.page.js
- * Home Screen + Room Creation/Joining Logic
+ * fe/js/home.page.js
+ * Home Screen + Room Creation/Joining Logic + Rejoin Feature
  */
 
 import { me, getToken, clearToken } from "./auth.js";
 import { postJson } from "./api.js";
-import { loadRoomPage } from "./room.page.js";
 
 export async function loadHomePage() {
     const app = document.getElementById('app');
 
-    // 1. Auth Check
+    // --- 1. REJOIN LOGIC ---
+    let rejoinBtnHTML = '';
+    const lastRoomString = localStorage.getItem('lastRoom');
+    if (lastRoomString) {
+        try {
+            const lastRoom = JSON.parse(lastRoomString);
+            if (Date.now() - lastRoom.timestamp < 24 * 60 * 60 * 1000) {
+                rejoinBtnHTML = `
+                    <div style="margin-bottom: 20px; text-align: center;">
+                        <button id="btnRejoin" class="btn" style="
+                            background: rgba(122,167,255,0.15); 
+                            border: 1px solid var(--accent); 
+                            color: var(--accent);
+                            width: 100%;
+                            padding: 14px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 10px;
+                            cursor: pointer;
+                        ">
+                            <span>↪️ Rejoin <b>${lastRoom.name}</b></span>
+                            <span style="opacity:0.7; font-size:0.9em;">(${lastRoom.roomCode})</span>
+                        </button>
+                    </div>
+                `;
+            }
+        } catch(e) { console.log("Error parsing last room", e); }
+    }
+
+    // --- 2. AUTH CHECK ---
     const token = getToken();
     if (!token) {
         window.location.replace("/index.html");
         return;
     }
 
-    // 2. Render the HTML Layout
+    // --- 3. RENDER LAYOUT ---
     app.innerHTML = `
         <div class="container">
             <div class="topbar">
@@ -45,6 +58,7 @@ export async function loadHomePage() {
                     </div>
                 </div>
                 <div class="row">
+                    <button id="btnShop" class="btn" style="padding:6px 10px; font-size:0.9rem;">🛒 Shop</button>
                     <div class="pill" id="pointPill">⭐ ...</div>
                     
                     <a href="/user.profile.html" class="avatarLink" style="text-decoration: none;">
@@ -58,10 +72,10 @@ export async function loadHomePage() {
 
             <div id="homeMsg" class="toast" style="display:none; margin-bottom:20px;"></div>
 
+            ${rejoinBtnHTML}
+
             <div class="grid">
-                
                 <div style="display:grid; gap:var(--gap); align-content:start;">
-                    
                     <div class="card">
                         <h2>Join a Session</h2>
                         <p class="muted" style="margin-bottom:14px;">Enter a code and your goal.</p>
@@ -71,13 +85,11 @@ export async function loadHomePage() {
                             <button id="btnJoin" class="btn primary">Join Room</button>
                         </div>
                     </div>
-
                     <div class="card" style="background: linear-gradient(135deg, rgba(122,167,255,.1), rgba(101,240,199,.05)); border-color:var(--accent);">
                         <h2>Start New Session</h2>
                         <p class="muted">Create a custom room and invite others.</p>
                         <button id="btnOpenModal" class="btn primary" style="width:100%; margin-top:10px;">+ Create Room</button>
                     </div>
-
                 </div>
 
                 <div class="card">
@@ -107,7 +119,6 @@ export async function loadHomePage() {
                         What are you working on?
                         <input type="text" id="confTask" placeholder="e.g. Software Engineering HLD">
                     </label>
-
                     <label>
                         Duration (Minutes)
                         <select id="confTime">
@@ -116,17 +127,14 @@ export async function loadHomePage() {
                             <option value="90">90 Min (Marathon)</option>
                         </select>
                     </label>
-
                     <label>
                         or Custom minutes:
                         <input type="number" id="confMinutes" min="0" max="180" value="0">
                     </label>
-
                     <label>
                         <input type="checkbox" id="confAutoStart">
                         Start timer automatically
                     </label>
-
                     <label>
                         Room Theme
                         <select id="confTheme">
@@ -136,11 +144,30 @@ export async function loadHomePage() {
                             <option value="space">🚀 Outer Space</option>
                         </select>
                     </label>
-
                     <div class="row" style="margin-top:10px; justify-content:flex-end;">
                         <button id="btnCancel" class="btn">Cancel</button>
                         <button id="btnCreateConfirm" class="btn primary">Start Session</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="shopModal" class="modal-overlay">
+            <div class="modal-box" style="max-width:600px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2>Points Shop</h2>
+                    <div id="shopPointsDisplay" class="pill">⭐ ...</div>
+                </div>
+                <p class="muted">Spend points to unlock themes and emojis.</p>
+                
+                <h3>Room Themes</h3>
+                <div id="shopThemes" class="shop-grid">Loading...</div>
+                
+                <h3 style="margin-top:20px;">Avatar Packs</h3>
+                <div id="shopPacks" class="shop-grid">Loading...</div>
+
+                <div class="row" style="margin-top:20px; justify-content:flex-end;">
+                    <button id="btnCloseShop" class="btn">Close</button>
                 </div>
             </div>
         </div>
@@ -150,55 +177,36 @@ export async function loadHomePage() {
 }
 
 async function bindEventsAndLoadUser() {
-    const pointPill = document.getElementById("pointPill");
-
-    // Small Topbar Elements
-    const userAvatarImg = document.getElementById("userAvatarImg");
-    const userAvatarFallback = document.getElementById("userAvatarFallback");
-
-    // Big Profile Elements
-    const bigAvatarImg = document.getElementById("bigAvatarImg"); // <--- Selected new img
-    const bigAvatarFallback = document.getElementById("bigAvatarFallback");
-
-    const userNameDisplay = document.getElementById("userNameDisplay");
-    const userEmailDisplay = document.getElementById("userEmailDisplay");
-
-    // --- Load User Data ---
+    // --- LOAD USER ---
     try {
         const data = await me();
         const u = data.user || {};
 
-        // 1. Text Data
-        userNameDisplay.textContent = u.displayName || "User";
-        userEmailDisplay.textContent = u.email || "";
-        pointPill.textContent = `⭐ ${u.points ?? 0}`;
+        document.getElementById("userNameDisplay").textContent = u.displayName || "User";
+        document.getElementById("userEmailDisplay").textContent = u.email || "";
+        document.getElementById("pointPill").textContent = `⭐ ${u.points ?? 0}`;
 
-        // 2. Avatar Fallback Initials
+        // --- FIX: IMMEDIATELY LOCK THEMES BASED ON INVENTORY ---
+        const inventory = u.inventory || [];
+        updateThemeDropdown(inventory);
+        localStorage.setItem('inventory', JSON.stringify(inventory));
+        // --------------------------------------------------------
+
         const initial = (u.displayName?.[0] || u.email?.[0] || "?").toUpperCase();
-        userAvatarFallback.textContent = initial;
-        bigAvatarFallback.textContent = initial;
+        const fallbackEls = [document.getElementById("userAvatarFallback"), document.getElementById("bigAvatarFallback")];
+        const imgEls = [document.getElementById("userAvatarImg"), document.getElementById("bigAvatarImg")];
 
-        // 3. Avatar Image Logic
+        fallbackEls.forEach(el => el.textContent = initial);
+
         if (u.avatarUrl) {
-            // -- Small Topbar Avatar --
-            userAvatarImg.src = u.avatarUrl;
-            userAvatarImg.onload = () => {
-                userAvatarImg.style.display = "block";
-                userAvatarFallback.style.display = "none";
-            };
-
-            // -- Big Profile Card Avatar --
-            bigAvatarImg.src = u.avatarUrl;
-            bigAvatarImg.onload = () => {
-                bigAvatarImg.style.display = "block";
-                bigAvatarFallback.style.display = "none";
-            };
+            imgEls.forEach(img => {
+                img.src = u.avatarUrl;
+                img.onload = () => { img.style.display = "block"; };
+                img.nextElementSibling.style.display = "none";
+            });
         } else {
-            // No Avatar -> Show Fallbacks
-            userAvatarFallback.style.display = "block";
-            bigAvatarFallback.style.display = "block";
+            fallbackEls.forEach(el => el.style.display = "block");
         }
-
     } catch (err) {
         console.error("User load error", err);
         if (err?.status === 401) {
@@ -207,151 +215,170 @@ async function bindEventsAndLoadUser() {
         }
     }
 
-    // --- Event Listeners ---
-
+    // --- BUTTON BINDINGS ---
     document.getElementById("logoutBtn").onclick = () => {
         clearToken();
         window.location.replace("/index.html");
     };
 
     const modal = document.getElementById('createModal');
-    const openBtn = document.getElementById('btnOpenModal');
-    const cancelBtn = document.getElementById('btnCancel');
+    document.getElementById('btnOpenModal').onclick = () => modal.classList.add('open');
+    document.getElementById('btnCancel').onclick = () => modal.classList.remove('open');
 
-    if(openBtn) openBtn.onclick = () => modal.classList.add('open');
-    if(cancelBtn) cancelBtn.onclick = () => modal.classList.remove('open');
+    // SHOP BINDINGS
+    const shopModal = document.getElementById('shopModal');
+    document.getElementById('btnShop').onclick = () => openShop();
+    document.getElementById('btnCloseShop').onclick = () => shopModal.classList.remove('open');
 
-    // --- API ACTIONS ---
+    // API ACTIONS
     const token = getToken();
     const headers = { 'Authorization': `Bearer ${token}` };
 
-    // Create Room
-    const createBtn = document.getElementById('btnCreateConfirm');
-    if(createBtn) {
-        createBtn.onclick = async () => {
-            const task = document.getElementById('confTask').value || "Working";
-            const theme = document.getElementById('confTheme').value;
+    document.getElementById('btnCreateConfirm').onclick = async () => {
+        const task = document.getElementById('confTask').value || "Working";
+        const theme = document.getElementById('confTheme').value;
+        let time = parseInt(document.getElementById('confTime').value);
+        const autoStartTimer = document.getElementById('confAutoStart').checked;
+        const customMinutes = parseInt(document.getElementById('confMinutes').value);
+        if (!isNaN(customMinutes) && customMinutes > 0) time = customMinutes;
 
-            // get time set
-            let time = parseInt(document.getElementById('confTime').value);
-
-            const autoStartTimer = document.getElementById('confAutoStart').checked;
-            const customMinutes = parseInt(document.getElementById('confMinutes').value);
-
-            // if time is custom set, overwrites dropdown
-            if (!isNaN(customMinutes) && customMinutes > 0) {
-                time = customMinutes;
+        try {
+            const data = await postJson('/api/rooms/create', { task, time, theme, autoStartTimer }, headers);
+            if (data.success) {
+                modal.classList.remove('open');
+                const { loadRoomPage } = await import("./room.page.js");
+                loadRoomPage(data);
             }
+        } catch (e) { alert(e.message || "Connection Failed"); }
+    };
 
-            try {
-                const data = await postJson('/api/rooms/create', { task, time, theme, autoStartTimer }, headers);
-                if (data.success) {
-                    modal.classList.remove('open');
-                    loadRoomPage(data);
+    document.getElementById('btnJoin').onclick = async () => {
+        const code = document.getElementById('joinCodeInput').value;
+        const task = document.getElementById('joinTaskInput').value || "Collaborating";
+        if(!code) return alert("Please enter a code");
+
+        try {
+            const data = await postJson('/api/rooms/join', { code, task }, headers);
+            if (data.success) {
+                const { loadRoomPage } = await import("./room.page.js");
+                loadRoomPage(data);
+            }
+        } catch (e) { alert(e.message || "Room not found"); }
+    };
+
+    // Rejoin Logic
+    const btnRejoin = document.getElementById('btnRejoin');
+    if (btnRejoin) {
+        btnRejoin.onclick = async () => {
+            const lastRoomString = localStorage.getItem('lastRoom');
+            if (!lastRoomString) return;
+            const lastRoom = JSON.parse(lastRoomString);
+            if(lastRoom.roomCode) {
+                try {
+                    const data = await postJson('/api/rooms/join', { code: lastRoom.roomCode, task: "Rejoining..." }, headers);
+                    if (data.success) {
+                        const { loadRoomPage } = await import("./room.page.js");
+                        loadRoomPage(data);
+                    }
+                } catch(e) {
+                    alert("Could not rejoin room. It may have expired.");
+                    localStorage.removeItem('lastRoom');
+                    location.reload();
                 }
-            } catch (e) {
-                console.error(e);
-                alert(e.message || "Connection Failed");
             }
         };
     }
+}
 
-    // Join Room
-    const joinBtn = document.getElementById('btnJoin');
-    if(joinBtn) {
-        joinBtn.onclick = async () => {
-            const code = document.getElementById('joinCodeInput').value;
-            const task = document.getElementById('joinTaskInput').value || "Collaborating";
-            if(!code) return alert("Please enter a code");
+// Global Shop Logic
+window.buyItem = async (itemId) => {
+    if(!confirm("Buy this item?")) return;
+    const token = getToken();
+    try {
+        const res = await fetch('/api/shop/buy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ itemId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("Purchase successful!");
+            openShop(); // Refresh UI
+            document.getElementById('pointPill').textContent = `⭐ ${data.points}`;
+            localStorage.setItem('inventory', JSON.stringify(data.inventory));
+            updateThemeDropdown(data.inventory);
+        } else {
+            alert(data.error);
+        }
+    } catch(e) { console.error(e); }
+};
 
-            try {
-                const data = await postJson('/api/rooms/join', { code, task }, headers);
-                if (data.success) {
-                    loadRoomPage(data);
-                }
-            } catch (e) {
-                console.error(e);
-                alert(e.message || "Room not found or Connection Failed");
-            }
-        };
+async function openShop() {
+    const token = getToken();
+    try {
+        const res = await fetch('/api/shop', { headers: { 'Authorization': `Bearer ${token}` }});
+        if(!res.ok) throw new Error("Failed to load shop");
+        const data = await res.json();
+
+        document.getElementById('shopModal').classList.add('open');
+        renderShop(data.items, data.inventory, data.points);
+
+        localStorage.setItem('inventory', JSON.stringify(data.inventory));
+        updateThemeDropdown(data.inventory);
+    } catch(e) {
+        console.error(e);
+        alert("Shop is currently unavailable.");
     }
+}
+
+function renderShop(items, inventory, points) {
+    const themeContainer = document.getElementById('shopThemes');
+    const packContainer = document.getElementById('shopPacks');
+    document.getElementById('shopPointsDisplay').textContent = `⭐ ${points}`;
+
+    const createCard = (item) => {
+        const isOwned = inventory.includes(item.id);
+        const canAfford = points >= item.price;
+        let btnHtml = isOwned ? `<button class="shop-btn owned">Owned</button>` :
+            canAfford ? `<button class="shop-btn buy" onclick="buyItem('${item.id}')">Buy (${item.price})</button>` :
+                `<button class="shop-btn locked">Need ${item.price}</button>`;
+
+        return `
+            <div class="shop-item">
+                <h4>${item.name}</h4>
+                <div class="price">⭐ ${item.price}</div>
+                ${btnHtml}
+            </div>
+        `;
+    };
+
+    if(items) {
+        themeContainer.innerHTML = items.filter(i => i.type === 'theme').map(createCard).join('');
+        packContainer.innerHTML = items.filter(i => i.type === 'pack').map(createCard).join('');
+    }
+}
+
+function updateThemeDropdown(inventory) {
+    const select = document.getElementById('confTheme');
+    if (!select) return;
+    const mapping = { 'theme_cozy': 'cozy', 'theme_forest': 'forest', 'theme_space': 'space' };
+
+    // Default inventory fallback if null
+    if (!inventory) inventory = [];
+
+    Array.from(select.options).forEach(opt => {
+        if (opt.value === 'default') return; // Always enabled
+        const shopId = Object.keys(mapping).find(key => mapping[key] === opt.value);
+        if (shopId) {
+            if (inventory.includes(shopId)) {
+                opt.disabled = false;
+                opt.textContent = opt.textContent.replace(' 🔒', '');
+            } else {
+                opt.disabled = true;
+                if (!opt.textContent.includes('🔒')) opt.textContent += ' 🔒';
+            }
+        }
+    });
 }
 
 loadHomePage();
-
-/** 
-import { me, getToken, clearToken } from "./auth.js";
-import { loadRoomPage } from "./room.page.js";
-
-const userPill = document.getElementById("userPill");
-const pointPill = document.getElementById("pointPill");
-const userAvatarImg = document.getElementById("userAvatarImg");
-const userAvatarFallback = document.getElementById("userAvatarFallback");
-
-const homeMsg = document.getElementById("homeMsg");
-const logoutBtn = document.getElementById("logoutBtn");
-
-function setMsg(type, text) {
-    homeMsg.className = `toast ${type}`;
-    homeMsg.textContent = text;
-    homeMsg.style.display = "block";
-}
-
-function renderTopbarAvatar(u) {
-    const initial = (u?.displayName?.[0] || u?.email?.[0] || "?").toUpperCase();
-
-    userAvatarFallback.textContent = initial;
-    userAvatarFallback.style.display = "block";
-    userAvatarImg.style.display = "none";
-
-    if (!u?.avatarUrl) return;
-
-    userAvatarImg.onload = () => {
-        userAvatarImg.style.display = "block";
-        userAvatarFallback.style.display = "none";
-    };
-
-    userAvatarImg.onerror = () => {
-        userAvatarImg.style.display = "none";
-        userAvatarFallback.style.display = "block";
-    };
-
-    userAvatarImg.src = u.avatarUrl;
-}
-
-
-async function init() {
-    if (!getToken()) {
-        window.location.replace("/index.html");
-        return;
-    }
-
-    try {
-        const data = await me();
-        const u = data.user || {};
-
-        userPill.textContent = u.displayName || u.email || "Eingeloggt";
-        pointPill.textContent = `⭐ ${u.points ?? 0}`;
-
-        renderTopbarAvatar(u);
-    } catch (err) {
-        console.error("HOME init error:", err);
-
-        if (err?.status === 401) {
-            clearToken();
-            setMsg("error", "Session ungültig. Bitte erneut einloggen.");
-            setTimeout(() => window.location.replace("/index.html"), 600);
-            return;
-        }
-
-        setMsg("error", err?.message || "Fehler beim Laden.");
-    }
-}
-
-logoutBtn?.addEventListener("click", () => {
-    clearToken();
-    window.location.replace("/index.html");
-});
-
-init();
-*/

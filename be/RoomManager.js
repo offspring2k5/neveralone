@@ -1,30 +1,36 @@
 /**
  * be/RoomManager.js
- * Business Logic Service (Singleton).
- * Purpose:
- * - Centralises the logic for creating, finding, and joining rooms
- * - Acts as the single source of truth for "which rooms exist right now"
- * - Bridges the gap between the API (Routes) and the Data (Redis/Room objects)
- * - Exported as 'new RoomManager()' so the entire app shares one instance
  */
 const Room = require('./Room');
-// This is your Data Adapter. 
-// redis connector
 const client = require('./redisClient');
-// Keys
+const usersStore = require('./usersStore'); // Needed for point persistence
+
 const keyRoom = (id) => `room:${id}`;
 const keyRoomCode = (code) => `room_code:${code}`;
 
+// --- CENTRAL POINT SYSTEM CONFIGURATION ---
+const POINTS = {
+    TASK_COMPLETE: 10,  // Points for finishing a task
+    TIMER_COMPLETE: 50, // Points for staying until timer ends
+    EARLY_LEAVE: -20    // Penalty for leaving while timer runs
+};
+
 class RoomManager {
+    constructor() {
+        // We track timer timeouts in memory to trigger events when time is up
+        this.timerTimeouts = new Map(); // roomId -> timeoutId
+        this.io = null; // Socket.io instance for async broadcasts
+    }
+
+    // Call this from server.js to allow async emitting
+    setIO(ioInstance) {
+        this.io = ioInstance;
+    }
 
     async createRoom(host, config) {
         const newRoom = new Room(host, config);
-
-        // Serialize
         const roomJson = JSON.stringify(newRoom.toJSON());
 
-        // Save Room Data AND Code Mapping
-        // Expire after 24 hours (86400 seconds) to clean up old rooms
         await client.multi()
             .set(keyRoom(newRoom.getRoomId()), roomJson, { EX: 86400 })
             .set(keyRoomCode(newRoom.getRoomCode()), newRoom.getRoomId(), { EX: 86400 })
@@ -34,157 +40,178 @@ class RoomManager {
     }
 
     async joinRoom(user, code, taskName) {
-        // 1. Find Room ID by Code
         const roomId = await client.get(keyRoomCode(code));
-        if (!roomId) {
-            throw new Error("Invalid or expired Room Code");
-        }
+        if (!roomId) throw new Error("Invalid or expired Room Code");
 
-        // 2. Fetch Room Data
         const roomDataString = await client.get(keyRoom(roomId));
-        if (!roomDataString) {
-            throw new Error("Room not found (expired?)");
-        }
+        if (!roomDataString) throw new Error("Room not found");
 
-        // 3. Hydrate Room Object
         const room = Room.fromJSON(JSON.parse(roomDataString));
-
-        // 4. Modify State (Add User)
         room.addParticipant(user, taskName);
 
-        // 5. Save Updated State back to Redis
-        // We extend the TTL (Time To Live) since there is activity
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
-
         return room;
     }
 
-    // TIMER (FR9 / FR10)
+    // --- UPDATED TIMER LOGIC (Points) ---
     async startTimer(roomId, userId) {
         const roomDataString = await client.get(keyRoom(roomId));
-        if (!roomDataString) {
-            throw new Error("Room not found");
-        }
+        if (!roomDataString) throw new Error("Room not found");
 
         const room = Room.fromJSON(JSON.parse(roomDataString));
-
         room.startTimer(userId);
 
-        await client.set(
-            keyRoom(roomId),
-            JSON.stringify(room.toJSON()),
-            { EX: 86400 }
-        );
+        // Calculate remaining time
+        const durationMs = room._timerDuration * 60 * 1000;
+        const remainingMs = durationMs - room._elapsedTime;
 
+        // Set Timeout to award points when finished
+        if (remainingMs > 0) {
+            if (this.timerTimeouts.has(roomId)) clearTimeout(this.timerTimeouts.get(roomId));
+
+            const timeoutId = setTimeout(() => this._handleTimerComplete(roomId), remainingMs);
+            this.timerTimeouts.set(roomId, timeoutId);
+        }
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
+    }
+
+    // Internal: Triggered when timer naturally finishes
+    async _handleTimerComplete(roomId) {
+        try {
+            const roomDataString = await client.get(keyRoom(roomId));
+            if (!roomDataString) return;
+            const room = Room.fromJSON(JSON.parse(roomDataString));
+
+            // Stop timer properly
+            room.stopTimer();
+
+            // Award Points to all active participants
+            const users = room.getActiveParticipants();
+            for (const p of users) {
+                // 1. Update DB
+                await usersStore.changeUserPoints(p.userId, POINTS.TIMER_COMPLETE);
+                // 2. Update Room State (Visuals)
+                room.updateParticipantScore(p.userId, POINTS.TIMER_COMPLETE);
+            }
+
+            // Save
+            await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+
+            // Notify Frontend
+            if (this.io) {
+                this.io.to(roomId).emit('room_update', room.toJSON());
+                // Optional: Send a toast message
+                this.io.to(roomId).emit('toast', { type: 'ok', msg: `Timer finished! +${POINTS.TIMER_COMPLETE} Points!` });
+            }
+
+            this.timerTimeouts.delete(roomId);
+        } catch (e) {
+            console.error("Timer completion error:", e);
+        }
     }
 
     async stopTimer(roomId) {
         const roomDataString = await client.get(keyRoom(roomId));
-        if (!roomDataString) {
-            throw new Error("Room not found");
-        }
-
-        const room = Room.fromJSON(JSON.parse(roomDataString));
-
-        const elapsedMs = room.stopTimer();
-
-        await client.set(
-            keyRoom(roomId),
-            JSON.stringify(room.toJSON()),
-            { EX: 86400 }
-        );
-
-        return {
-            elapsedMs,
-            room
-        };
-    }
-    async moveAvatar(roomId, userId, x, y) {
-        const roomDataString = await client.get(keyRoom(roomId));
-        if (!roomDataString) return null;
-
-        const room = Room.fromJSON(JSON.parse(roomDataString));
-
-        // Update state
-        room.updateParticipantPosition(userId, x, y);
-
-        // Save
-        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
-
-        return room;
-    }
-    async removeUser(roomId, userId) {
-        const roomDataString = await client.get(keyRoom(roomId));
-        if (!roomDataString) return null; // Room doesn't exist/expired
-
-        const room = Room.fromJSON(JSON.parse(roomDataString));
-
-        // Remove the user locally
-        room.removeUser(userId);
-
-        // Save updated state to Redis
-        await client.set(
-            keyRoom(roomId),
-            JSON.stringify(room.toJSON()),
-            { EX: 86400 }
-        );
-
-        return room;
-    }
-    async kickUser(roomId, requesterId, targetUserId) {
-        const roomKey = keyRoom(roomId);
-        const roomDataString = await client.get(roomKey);
         if (!roomDataString) throw new Error("Room not found");
-
         const room = Room.fromJSON(JSON.parse(roomDataString));
 
-        // 1. Security Check: Only Host can kick
-        if (room._host.userId !== requesterId) {
-            throw new Error("Only the host can kick users");
+        room.stopTimer();
+
+        // Clear pending point award
+        if (this.timerTimeouts.has(roomId)) {
+            clearTimeout(this.timerTimeouts.get(roomId));
+            this.timerTimeouts.delete(roomId);
         }
 
-        // 2. Remove the user
-        room.removeUser(targetUserId);
-
-        // 3. Save updated room
-        await client.set(roomKey, JSON.stringify(room.toJSON()), { EX: 86400 });
-
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
     }
+
     async resetTimer(roomId) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) throw new Error("Room not found");
-
         const room = Room.fromJSON(JSON.parse(roomDataString));
 
         room.resetTimer();
+        if (this.timerTimeouts.has(roomId)) {
+            clearTimeout(this.timerTimeouts.get(roomId));
+            this.timerTimeouts.delete(roomId);
+        }
 
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
     }
 
-    // --- NEW: Update Settings (Duration) ---
     async updateSettings(roomId, { duration }) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) throw new Error("Room not found");
-
         const room = Room.fromJSON(JSON.parse(roomDataString));
 
         if (duration) {
             room.setTimerDuration(duration);
+            // Duration change resets timer -> clear timeout
+            if (this.timerTimeouts.has(roomId)) {
+                clearTimeout(this.timerTimeouts.get(roomId));
+                this.timerTimeouts.delete(roomId);
+            }
         }
 
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
     }
-    async createTask(roomId, userId, text) {
+
+    async moveAvatar(roomId, userId, x, y) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+        room.updateParticipantPosition(userId, x, y);
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+
+    // --- UPDATED: Penalize Early Leave ---
+    async removeUser(roomId, userId) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) return null;
 
         const room = Room.fromJSON(JSON.parse(roomDataString));
-        room.addTask(userId, text);
 
+        // CHECK: Is timer running? -> Penalty
+        if (room._timerRunning) {
+            // Check if user is actually in the room (to avoid double penalty)
+            const participant = room.getActiveParticipants().find(u => u.userId === userId);
+            if (participant) {
+                // Update DB
+                await usersStore.changeUserPoints(userId, POINTS.EARLY_LEAVE);
+                // No need to update room score since they are leaving
+            }
+        }
+
+        room.removeUser(userId);
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+
+    async kickUser(roomId, requesterId, targetUserId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) throw new Error("Room not found");
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        if (room._host.userId !== requesterId) throw new Error("Only the host can kick users");
+        room.removeUser(targetUserId);
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+        return room;
+    }
+
+    async createTask(roomId, userId, text) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+        room.addTask(userId, text);
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
     }
@@ -192,20 +219,28 @@ class RoomManager {
     async moveTask(roomId, taskId, x, y) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) return null;
-
         const room = Room.fromJSON(JSON.parse(roomDataString));
         room.updateTaskPosition(taskId, x, y);
-
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
     }
 
+    // --- UPDATED: Award Points for Task ---
     async completeTask(roomId, taskId) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) return null;
 
         const room = Room.fromJSON(JSON.parse(roomDataString));
-        room.completeTask(taskId);
+
+        // completeTask now returns the ownerId
+        const ownerId = room.completeTask(taskId);
+
+        if (ownerId) {
+            // 1. Update DB
+            await usersStore.changeUserPoints(ownerId, POINTS.TASK_COMPLETE);
+            // 2. Update Room State (Visuals)
+            room.updateParticipantScore(ownerId, POINTS.TASK_COMPLETE);
+        }
 
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;

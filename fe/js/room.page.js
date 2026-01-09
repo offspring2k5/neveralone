@@ -9,6 +9,20 @@ let countdownInterval = null;
 let socket = null;
 
 export async function loadRoomPage(roomData) {
+    try {
+        const lastRoomData = {
+            roomId: roomData.roomId,
+            roomCode: roomData.roomCode,
+            name: roomData.name || "Productivity Room",
+            timestamp: Date.now()
+        };
+        localStorage.setItem('lastRoom', JSON.stringify(lastRoomData));
+    } catch (e) {
+        console.error("Could not save last room", e);
+    }
+
+
+
     const app = document.getElementById('app');
     let myUser = {};
     try {
@@ -282,19 +296,66 @@ export async function loadRoomPage(roomData) {
 function renderUserList(users, hostId, myId) {
     const container = document.getElementById('userListContainer');
     if (!container) return;
+
     container.innerHTML = users.map(u => {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
+
+        // Check if I can kick this person (Host only, not myself)
         const canKick = (myId === hostId) && !isMe;
+
+        // Get points (default to 0 if undefined)
+        const points = u.points || 0;
+
         return `
             <div class="user-list-item">
                 <div class="ul-avatar" style="background-image: url('${img}')"></div>
                 <div class="ul-info">
-                    <div class="ul-name">${u.username} ${isMe ? '(You)' : ''}</div>
-                    <div class="ul-role">${isTargetHost ? '👑 Host' : 'Participant'}</div>
+                    <div class="ul-name">
+                        ${u.username} ${isMe ? '(You)' : ''}
+                        <span class="points-badge">⭐ ${points}</span>
+                    </div>
+                    <div class="ul-role">
+                        ${isTargetHost ? '👑 Host' : 'Participant'}
+                    </div>
                 </div>
-                ${canKick ? `<div class="btn-kick" onclick="kickUser('${u.userId}')">✕</div>` : ''}
+                ${canKick ? `
+                    <div class="btn-kick" 
+                         title="Remove User" 
+                         onclick="kickUser('${u.userId}')">
+                         ✕
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');container.innerHTML = users.map(u => {
+        const isMe = u.userId === myId;
+        const isTargetHost = u.userId === hostId;
+        const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
+        const canKick = (myId === hostId) && !isMe;
+        const points = u.points || 0;
+
+        return `
+            <div class="user-list-item">
+                <div class="ul-avatar" style="background-image: url('${img}')"></div>
+                
+                <div class="ul-info">
+                    <div class="ul-name-row">
+                        <span class="ul-name" title="${u.username}">
+                            ${u.username} ${isMe ? '(You)' : ''}
+                        </span>
+                        <span class="points-badge">⭐ ${points}</span>
+                    </div>
+                    
+                    <div class="ul-role">
+                        ${isTargetHost ? '👑 Host' : 'Participant'}
+                    </div>
+                </div>
+
+                ${canKick ? `
+                    <div class="btn-kick" onclick="kickUser('${u.userId}')">✕</div>
+                ` : ''}
             </div>
         `;
     }).join('');

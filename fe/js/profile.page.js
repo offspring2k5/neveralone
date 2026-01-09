@@ -1,11 +1,7 @@
 /**
- * fe/profile.page.js
- * Profilseite:
- * - Userdaten anzeigen (/me)
- * - Name ändern (PATCH /api/auth/profile) [optional Richtung FR21]
- * - Avatar hochladen (POST /api/auth/avatar)
+ * fe/js/profile.page.js
+ * Profile & Avatar Editor
  */
-
 import { me, getToken, clearToken } from "./auth.js";
 import { patchJson } from "./api.js";
 
@@ -30,22 +26,28 @@ const mashupPreview = document.getElementById("mashupPreview");
 const mashupPlaceholder = document.getElementById("mashupPlaceholder");
 const saveMashupBtn = document.getElementById("saveMashupBtn");
 
-// --- EMOJI LIST (Common supported emojis) ---
-const EMOJIS = [
-    "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🤭","🤫","🤥","😶","😐","😑","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🙈","🙉","🙊","💋","💌","💘","💝","💖","💗","💓","💞","💕","💟","❣️","💔","❤️","🧡","💛","💚","💙","💜","🤎","🖤","🤍","💯","💢","💥","💫","💦","💨","🕳️","💣","💬","👁️‍🗨️","🗨️","🗯️","💭","💤"
-];
-let currentUser = null; // <- damit wir email/displayName auch später haben
+// --- EMOJI PACKS ---
+const PACKS = {
+    'pack_basic': ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😙","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🤭","🤫","🤥","😶","😐","😑","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾"],
+    'pack_animals': ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🐔"],
+    'pack_fun': ["⚽","🏀","🏈","🎨","🧶","🎮","🎲","🎸","🎺","🚀","🛸","⚓","💎","💡","💣","🎈"],
+    'pack_hearts': ["❤️","🧡","💛","💚","💙","💜","🤎","🖤","🤍","💔","❣️","💕","💞","💓","💗","💖"]
+};
+
+let currentUser = null;
 
 let selection = {
     left: "😀",
     right: null,
-    activeSlot: 1 // 1 or 2
+    activeSlot: 1
 };
 
 function setMsg(type, text) {
-    profileMsg.className = `toast ${type}`;
-    profileMsg.textContent = text;
-    profileMsg.style.display = "block";
+    if(profileMsg) {
+        profileMsg.className = `toast ${type}`;
+        profileMsg.textContent = text;
+        profileMsg.style.display = "block";
+    }
 }
 
 function formatDate(iso) {
@@ -57,71 +59,97 @@ function formatDate(iso) {
     }
 }
 
-/**
- * Avatar Renderer:
- * - Wenn avatarUrl vorhanden: Bild anzeigen
- * - Sonst: Initiale anzeigen (1. Buchstabe)
- */
 function renderAvatar(u) {
     const initial = (u?.displayName?.[0] || u?.email?.[0] || "?").toUpperCase();
 
-    // ✅ immer sofort Initiale anzeigen
-    avatarFallback.textContent = initial;
-    avatarFallback.style.display = "block";
-    avatarImg.style.display = "none";
+    if(avatarFallback) {
+        avatarFallback.textContent = initial;
+        avatarFallback.style.display = "block";
+    }
+    if(avatarImg) avatarImg.style.display = "none";
 
-    // kein avatarUrl -> fertig
     if (!u?.avatarUrl) return;
 
-    // ✅ Bild nur einblenden, wenn es wirklich lädt
-    avatarImg.onload = () => {
-        avatarImg.style.display = "block";
-        avatarFallback.style.display = "none";
-    };
-    avatarImg.onerror = () => {
-        avatarImg.style.display = "none";
-        avatarFallback.style.display = "block";
-    };
-
-    avatarImg.src = u.avatarUrl;
+    if(avatarImg) {
+        avatarImg.onload = () => {
+            avatarImg.style.display = "block";
+            if(avatarFallback) avatarFallback.style.display = "none";
+        };
+        avatarImg.onerror = () => {
+            avatarImg.style.display = "none";
+            if(avatarFallback) avatarFallback.style.display = "block";
+        };
+        avatarImg.src = u.avatarUrl;
+    }
 }
 
 async function loadProfile() {
-    if (!getToken()) {
+    const token = getToken(); // 1. Define token properly
+    if (!token) {
         window.location.replace("/index.html");
         return;
     }
 
+    // --- FETCH INVENTORY ---
+    let availableEmojis = [];
+    try {
+        const shopRes = await fetch('/api/shop', { headers: { 'Authorization': `Bearer ${token}` }});
+        if(shopRes.ok) {
+            const shopData = await shopRes.json();
+            const inventory = shopData.inventory || [];
+
+            // Always ensure basic pack is present
+            if(!inventory.includes('pack_basic')) inventory.push('pack_basic');
+
+            inventory.forEach(itemId => {
+                if (PACKS[itemId]) {
+                    availableEmojis = availableEmojis.concat(PACKS[itemId]);
+                }
+            });
+        }
+    } catch(e) {
+        console.error("Shop fetch error", e);
+        // Fallback to basic if shop fails
+        availableEmojis = PACKS['pack_basic'];
+    }
+
+    // Fallback if empty
+    if (availableEmojis.length === 0) availableEmojis = PACKS['pack_basic'];
+
+    // Render Grid
+    initEmojiKitchen(availableEmojis);
+
+    // --- FETCH USER ---
     try {
         const data = await me();
         const u = data.user || {};
         currentUser = u;
 
-        pName.textContent = u.displayName ?? "—";
-        pEmail.textContent = u.email ?? "—";
-        pCreatedAt.textContent = formatDate(u.createdAt);
-
-        newName.value = u.displayName ?? "";
+        if(pName) pName.textContent = u.displayName ?? "—";
+        if(pEmail) pEmail.textContent = u.email ?? "—";
+        if(pCreatedAt) pCreatedAt.textContent = formatDate(u.createdAt);
+        if(newName) newName.value = u.displayName ?? "";
 
         renderAvatar(u);
     } catch (err) {
         console.error("PROFILE load error:", err);
-
         if (err?.status === 401) {
             clearToken();
             setMsg("error", "Session ungültig. Bitte erneut einloggen.");
             setTimeout(() => window.location.replace("/index.html"), 600);
             return;
         }
-
         setMsg("error", err?.message || "Fehler beim Laden des Profils.");
     }
 }
 
-function initEmojiKitchen() {
+// 2. Fix function signature to accept the list
+function initEmojiKitchen(emojiList = []) {
+    if(!emojiGrid) return;
+
     // 1. Render Grid
     emojiGrid.innerHTML = "";
-    EMOJIS.forEach(emoji => {
+    emojiList.forEach(emoji => {
         const btn = document.createElement("div");
         btn.className = "emoji-btn";
         btn.textContent = emoji;
@@ -130,8 +158,8 @@ function initEmojiKitchen() {
     });
 
     // 2. Slot Click Handlers
-    slot1.onclick = () => setActiveSlot(1);
-    slot2.onclick = () => setActiveSlot(2);
+    if(slot1) slot1.onclick = () => setActiveSlot(1);
+    if(slot2) slot2.onclick = () => setActiveSlot(2);
 
     // 3. Initial State
     updateKitchenUI();
@@ -145,7 +173,6 @@ function setActiveSlot(num) {
 function selectEmoji(emoji) {
     if (selection.activeSlot === 1) {
         selection.left = emoji;
-        // Auto-advance to slot 2 if it's empty
         if (!selection.right) selection.activeSlot = 2;
     } else {
         selection.right = emoji;
@@ -155,7 +182,8 @@ function selectEmoji(emoji) {
 }
 
 function updateKitchenUI() {
-    // Update Slots Visuals
+    if(!slot1 || !slot2) return;
+
     slot1.textContent = selection.left || "?";
     slot2.textContent = selection.right || "?";
 
@@ -169,6 +197,8 @@ function updateKitchenUI() {
 }
 
 async function updatePreview() {
+    if(!mashupPreview || !mashupPlaceholder || !saveMashupBtn) return;
+
     if (!selection.left || !selection.right) {
         mashupPreview.style.display = "none";
         mashupPlaceholder.style.display = "block";
@@ -176,29 +206,26 @@ async function updatePreview() {
         return;
     }
 
-    // Construct API URL
-    // API Format: https://emojik.vercel.app/s/<e1>_<e2>?size=128
     const url = `https://emojik.vercel.app/s/${selection.left}_${selection.right}?size=128`;
 
     mashupPreview.style.display = "none";
     mashupPlaceholder.style.display = "block";
     saveMashupBtn.disabled = true;
 
-    // Test load image
     const tempImg = new Image();
     tempImg.onload = () => {
         mashupPreview.src = url;
         mashupPreview.style.display = "block";
         mashupPlaceholder.style.display = "none";
-        saveMashupBtn.disabled = false; // Enable save only if valid
+        saveMashupBtn.disabled = false;
     };
     tempImg.onerror = () => {
-        // Some combinations don't exist
         setMsg("error", "Diese Kombination ist leider nicht verfügbar.");
     };
     tempImg.src = url;
 }
 
+// Listeners
 logoutBtn?.addEventListener("click", () => {
     clearToken();
     window.location.replace("/index.html");
@@ -206,7 +233,6 @@ logoutBtn?.addEventListener("click", () => {
 
 nameForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const token = getToken();
     if (!token) return window.location.replace("/index.html");
 
@@ -222,32 +248,16 @@ nameForm?.addEventListener("submit", async (e) => {
             { displayName },
             { Authorization: `Bearer ${token}` }
         );
-
         const newDisplayName = data.user?.displayName ?? displayName;
 
-        // UI + Cache updaten
-        pName.textContent = newDisplayName;
-        newName.value = newDisplayName;
+        if(pName) pName.textContent = newDisplayName;
+        if(newName) newName.value = newDisplayName;
 
-        currentUser = {
-            ...(currentUser || {}),
-            displayName: newDisplayName,
-        };
-
-        //Initiale sofort updaten (Avatar wird nur gezeigt wenn er lädt)
+        currentUser = { ...(currentUser || {}), displayName: newDisplayName };
         renderAvatar(currentUser);
-
         setMsg("ok", "Name gespeichert.");
     } catch (err) {
         console.error("PROFILE patch error:", err);
-
-        if (err?.status === 401) {
-            clearToken();
-            setMsg("error", "Session ungültig. Bitte erneut einloggen.");
-            setTimeout(() => window.location.replace("/index.html"), 600);
-            return;
-        }
-
         setMsg("error", err?.message || "Fehler beim Speichern.");
     }
 });
@@ -255,7 +265,6 @@ nameForm?.addEventListener("submit", async (e) => {
 
 avatarForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const token = getToken();
     if (!token) return window.location.replace("/index.html");
 
@@ -271,40 +280,24 @@ avatarForm?.addEventListener("submit", async (e) => {
             headers: { Authorization: `Bearer ${token}` },
             body: fd,
         });
-
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            const err = new Error(data?.error || `HTTP ${res.status}`);
-            err.status = res.status;
-            throw err;
-        }
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
         if (data.user?.avatarUrl) {
-            // cache update + cache-bust
             const url = data.user.avatarUrl + `?v=${Date.now()}`;
             currentUser = { ...(currentUser || {}), avatarUrl: url };
             renderAvatar(currentUser);
         }
-
         avatarFile.value = "";
         setMsg("ok", "Avatar gespeichert.");
     } catch (err) {
         console.error("AVATAR upload error:", err);
-
-        if (err?.status === 401) {
-            clearToken();
-            setMsg("error", "Session ungültig. Bitte erneut einloggen.");
-            setTimeout(() => window.location.replace("/index.html"), 600);
-            return;
-        }
-
         setMsg("error", err?.message || "Fehler beim Avatar-Upload.");
     }
 });
 
 saveMashupBtn?.addEventListener("click", async () => {
     if (!mashupPreview.src) return;
-
     const token = getToken();
     if (!token) return window.location.replace("/index.html");
 
@@ -312,17 +305,13 @@ saveMashupBtn?.addEventListener("click", async () => {
     saveMashupBtn.disabled = true;
 
     try {
-        // 1. Fetch the image blob from the external API
         const resp = await fetch(mashupPreview.src);
         if (!resp.ok) throw new Error("Konnte Bild nicht laden.");
         const blob = await resp.blob();
 
-        // 2. Create FormData for your existing backend endpoint
         const fd = new FormData();
-        // Backend expects 'avatar' field and checks mime type
         fd.append("avatar", blob, `mashup_${Date.now()}.png`);
 
-        // 3. Upload to your Backend
         const uploadRes = await fetch("/api/auth/avatar", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
@@ -332,16 +321,13 @@ saveMashupBtn?.addEventListener("click", async () => {
         const data = await uploadRes.json().catch(() => ({}));
         if (!uploadRes.ok) throw new Error(data?.error || "Upload fehlgeschlagen");
 
-        // 4. Update UI
         if (data.user?.avatarUrl) {
             const url = data.user.avatarUrl + `?v=${Date.now()}`;
             currentUser = { ...(currentUser || {}), avatarUrl: url };
             renderAvatar(currentUser);
         }
-
         setMsg("ok", "Emoji-Avatar erfolgreich gespeichert!");
 
-        // Reset Logic (Optional)
         selection.right = null;
         selection.activeSlot = 2;
         updateKitchenUI();
@@ -354,6 +340,5 @@ saveMashupBtn?.addEventListener("click", async () => {
     }
 });
 
-initEmojiKitchen();
-
+// Start loading
 loadProfile();

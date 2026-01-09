@@ -38,9 +38,14 @@ async function findUserById(id) {
  */
 async function createUser(user) {
     const { id, email } = user;
-    const userString = JSON.stringify(user);
 
-    // Use a transaction (multi) to ensure both keys are written
+    user.points = 0;
+
+    // --- NEW: Default Inventory ---
+    // Everyone owns the default theme and the basic smiley pack
+    user.inventory = ['theme_default', 'pack_basic'];
+
+    const userString = JSON.stringify(user);
     await client.multi()
         .set(keyUser(id), userString)
         .set(keyEmail(email), id)
@@ -63,11 +68,36 @@ async function updateUser(id, partialUpdates) {
 
     return updatedUser;
 }
+async function changeUserPoints(id, delta) {
+    const user = await findUserById(id);
+    if (!user) return null;
 
+    const currentPoints = user.points || 0;
+    const newPoints = Math.max(0, currentPoints + delta);
+    user.points = newPoints;
+
+    await client.set(keyUser(id), JSON.stringify(user));
+    return user;
+}
+
+async function addItemToInventory(id, itemId) {
+    const user = await findUserById(id);
+    if (!user) return null;
+
+    if (!user.inventory) user.inventory = ['theme_default', 'pack_basic'];
+
+    if (!user.inventory.includes(itemId)) {
+        user.inventory.push(itemId);
+        await client.set(keyUser(id), JSON.stringify(user));
+    }
+    return user;
+}
 // Note: readDb/writeDb are removed as they are not efficient for Redis
 module.exports = {
     findUserByEmail,
     findUserById,
     createUser,
-    updateUser
+    updateUser,
+    changeUserPoints,
+    addItemToInventory
 };
