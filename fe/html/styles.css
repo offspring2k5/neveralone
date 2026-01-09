@@ -802,7 +802,7 @@ body.theme-default .room-scene {
     position: absolute;
     top: 100px; /* Below header */
     left: 20px;
-    width: 220px;
+    width: 260px;
     background: rgba(15, 23, 48, 0.6); /* Semi-transparent dark blue */
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -854,12 +854,25 @@ body.theme-default .room-scene {
     flex-direction: column;
 }
 
+.ul-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+}
 .ul-name {
     font-size: 0.9rem;
     font-weight: 600;
+
+    /* Truncate logic */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
+    /* Ensure it doesn't push the badge out */
+    flex: 1;
+    min-width: 0;
 }
 
 .ul-role {
@@ -1007,4 +1020,69 @@ body.theme-default .room-scene {
 @keyframes sparkleAnim {
     0% { transform: scale(0) rotate(0deg); opacity: 1; }
     100% { transform: scale(1.5) rotate(180deg); opacity: 0; }
+}
+.points-badge {
+    display: inline-block;
+    background: rgba(255, 215, 0, 0.15); /* Gold with transparency */
+    color: #ffd700; /* Gold text */
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    flex-shrink: 0;
+    margin-left: 0;
+}
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.shop-item {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    transition: transform 0.1s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+}
+
+.shop-item h4 { margin: 0 0 5px 0; font-size: 0.9rem; }
+.shop-item .price { font-weight: bold; color: #ffd700; margin-bottom: 8px; }
+
+.shop-btn {
+    width: 100%;
+    padding: 6px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.shop-btn.buy { background: var(--accent); color: white; }
+.shop-btn.buy:hover { filter: brightness(1.1); }
+
+.shop-btn.owned {
+    background: rgba(101,240,199,0.2);
+    color: #65f0c7;
+    cursor: default;
+}
+
+.shop-btn.locked {
+    background: rgba(255,255,255,0.1);
+    color: var(--muted);
+    cursor: not-allowed;
+}
+
+/* Select Option Locking */
+select option:disabled {
+    color: var(--muted);
+    font-style: italic;
 }
