@@ -533,7 +533,10 @@ body.theme-default .room-scene {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+
+
+    pointer-events: none;
 }
 
 .room-info-badge {
@@ -544,6 +547,7 @@ body.theme-default .room-scene {
     font-weight: bold;
     font-size: 0.9rem;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    pointer-events: auto;
 }
 
 /* 4. The Timer Display */
@@ -555,6 +559,7 @@ body.theme-default .room-scene {
     border: 1px solid rgba(255,255,255,0.2);
     text-align: right;
     color: white;
+    pointer-events: auto;
 }
 
 .mini-timer {
@@ -792,4 +797,93 @@ body.theme-default .room-scene {
     width: 100%;
     height: 100%;
     object-fit: contain;
+}
+.user-list-panel {
+    position: absolute;
+    top: 100px; /* Below header */
+    left: 20px;
+    width: 220px;
+    background: rgba(15, 23, 48, 0.6); /* Semi-transparent dark blue */
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 16px;
+    z-index: 50; /* Above avatars */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.user-list-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.user-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.user-list-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ul-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.ul-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ul-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ul-role {
+    font-size: 0.7rem;
+    color: var(--muted);
+}
+
+/* Kick Button (X) */
+.btn-kick {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 107, 107, 0.4);
+    background: rgba(255, 107, 107, 0.1);
+    color: #ff6b6b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btn-kick:hover {
+    background: #ff6b6b;
+    color: white;
 }

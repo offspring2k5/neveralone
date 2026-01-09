@@ -17,6 +17,8 @@ const RoomManager = require('./RoomManager');
 const app = express();
 const server = http.createServer(app); // Wrap express in HTTP server
 const io = new Server(server);
+const jwt = require('jsonwebtoken'); // Ensure this is imported
+const JWT_SECRET = process.env.JWT_SECRET || "testpasswort123456";
 // --- Config ---
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3000);
@@ -77,6 +79,28 @@ io.on('connection', (socket) => {
             console.error("Error leaving room:", e);
         }
     });
+    socket.on('kick_user', async ({ roomId, targetUserId, token }) => {
+        try {
+            // 1. Verify who sent the command
+            const decoded = jwt.verify(token, JWT_SECRET);
+            const requesterId = decoded.sub || decoded.id;
+
+            // 2. Perform Kick
+            const updatedRoom = await RoomManager.kickUser(roomId, requesterId, targetUserId);
+
+            // 3. Notify the specific user they were kicked (so they get redirected)
+            // We need to find the socket ID of the targetUser?
+            // Since we broadcast room updates, the client can check if they are still in the list.
+            // But an explicit event is nicer for UI alerts.
+            io.to(roomId).emit('kicked_notification', targetUserId);
+
+            // 4. Update everyone else's view
+            io.to(roomId).emit('room_update', updatedRoom.toJSON());
+
+        } catch (e) {
+            console.error("Kick failed:", e.message);
+        }
+    });
 
     socket.on('disconnect', async () => {
         // Retrieve the data we saved during join
@@ -94,6 +118,7 @@ io.on('connection', (socket) => {
             }
         }
     });
+
 });
 // --- Static Frontend ---
 // HTML + CSS: /index.html, /styles.css, /home.html, /user.profile.html

@@ -4,10 +4,9 @@
 import { loadHomePage } from './home.page.js';
 import { me } from './auth.js';
 import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+
 let countdownInterval = null;
 let socket = null;
-
-
 
 export async function loadRoomPage(roomData) {
     const app = document.getElementById('app');
@@ -18,19 +17,15 @@ export async function loadRoomPage(roomData) {
     } catch(e) {
         console.error("Failed to load user:", e);
     }
-    // Initialize socket if it doesn't exist (window.io comes from the script tag)
+
+    // --- SOCKET SETUP ---
     if (!socket) {
         console.log("Initializing Socket via ESM import...");
-        socket = io(); // Connects to the same URL as the website (localhost:3000)
+        socket = io();
     }
 
-    console.log("Socket Status:", socket ? "Active" : "Not Found");
     if (socket) {
-        // Now myUser.id is defined!
-        socket.emit('join_room', {
-            roomId: roomData.roomId,
-            userId: myUser.id
-        });
+        socket.emit('join_room', { roomId: roomData.roomId, userId: myUser.id });
 
         socket.off('room_update');
         socket.on('room_update', (updatedRoomData) => {
@@ -38,33 +33,34 @@ export async function loadRoomPage(roomData) {
             loadRoomPage(updatedRoomData);
         });
 
-        // Re-attach reaction listener
+        // Listen for reactions
         socket.off('reaction_received');
         socket.on('reaction_received', ({ targetUserId, reaction }) => {
             showReactionOnAvatar(targetUserId, reaction);
         });
-    }
-    // Listen for reactions from the server
-    if (socket) {
-        socket.off('reaction_received');
-        socket.on('reaction_received', ({ targetUserId, reaction }) => {
-            showReactionOnAvatar(targetUserId, reaction);
+
+        // NEW: Listen for Kicked Notification
+        socket.off('kicked_notification');
+        socket.on('kicked_notification', (kickedId) => {
+            if (kickedId === myUser.id) {
+                alert("You have been kicked from the room.");
+                if(socket) socket.disconnect(); // Clean disconnect
+                // Reload page to reset state/socket fully or just load home
+                window.location.href = '/';
+            }
         });
     }
-    // Timer
+
+    // --- TIMER LOGIC ---
     function startCountdown(roomData) {
         if (countdownInterval) clearInterval(countdownInterval);
 
         const timerEl = document.querySelector('.mini-timer');
         if (!timerEl) return;
 
-        // Calculate Total Time in MS
         const totalDurationMs = (roomData.timerDuration || 25) * 60 * 1000;
-
-        // Get time already passed in previous segments
         const previouslyElapsed = roomData.elapsedTime || 0;
 
-        // Helper function to update the text
         const updateDisplay = (remainingMs) => {
             const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
             const min = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
@@ -73,14 +69,11 @@ export async function loadRoomPage(roomData) {
             return totalSeconds <= 0;
         };
 
-        //  Timer is PAUSED
         if (!roomData.timerRunning) {
-            const remaining = totalDurationMs - previouslyElapsed;
-            updateDisplay(remaining);
+            updateDisplay(totalDurationMs - previouslyElapsed);
             return;
         }
 
-        //  Timer is RUNNING
         const startTime = new Date(roomData.timerStartedAt).getTime();
 
         countdownInterval = setInterval(() => {
@@ -88,36 +81,29 @@ export async function loadRoomPage(roomData) {
             const totalElapsed = previouslyElapsed + currentSegment;
             const remaining = totalDurationMs - totalElapsed;
 
-            const isFinished = updateDisplay(remaining);
-
-            if (isFinished) {
+            if (updateDisplay(remaining)) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
-                // Optional: Trigger finish alert/sound
                 onTimerFinished();
             }
         }, 1000);
 
-        // Run once immediately to avoid 1-second delay
-        const currentSegment = Date.now() - startTime;
-        updateDisplay(totalDurationMs - (previouslyElapsed + currentSegment));
+        // Initial update
+        updateDisplay(totalDurationMs - (previouslyElapsed + (Date.now() - startTime)));
     }
 
     function onTimerFinished() {
-        alert("Time is up! Session finished.");
-        loadHomePage();
+        // alert("Time is up!");
     }
 
-
-    document.body.className = ''; 
+    // --- RENDER ROOM ---
+    document.body.className = '';
     if (roomData.settings?.theme) document.body.classList.add(`theme-${roomData.settings.theme}`);
-
 
     const participants = roomData.activeParticipants || [];
     const myParticipantEntry = participants.find(p => p.userId === myUser.id) || {};
     const myTask = myParticipantEntry.currentTask || "Focusing";
 
-    // Render HTML
     app.innerHTML = `
         <div class="room-scene">
             <div class="room-hud">
@@ -131,6 +117,11 @@ export async function loadRoomPage(roomData) {
                 </div>
             </div>
 
+            <div class="user-list-panel">
+                <div class="user-list-title">Participants (${participants.length})</div>
+                <div id="userListContainer"></div>
+            </div>
+
             <div class="room-floor" id="avatarStage"></div>
 
             <div class="room-controls">
@@ -140,54 +131,104 @@ export async function loadRoomPage(roomData) {
             </div>
         </div>
     `;
+
+    // Render Components
     renderAvatars(participants, roomData.roomId, myUser.id);
-    // 5. Render ALL Avatars with THEIR tasks
+    renderUserList(participants, roomData.host.userId, myUser.id);
 
-    document.getElementById('btnStartTimer').disabled = !!roomData.timerRunning;
-    document.getElementById('btnStopTimer').disabled = !roomData.timerRunning;
-
-    startCountdown(roomData);
-
+    // Bind Buttons
+    const btnStart = document.getElementById('btnStartTimer');
+    const btnStop = document.getElementById('btnStopTimer');
     const token = localStorage.getItem('token');
 
-    document.getElementById('btnStartTimer').onclick = async () => {
-        // We do NOT call loadRoomPage here anymore.
-        // We wait for the socket 'room_update' event to trigger the re-render.
-        await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-    };
+    if(btnStart) {
+        btnStart.disabled = !!roomData.timerRunning;
+        btnStart.onclick = async () => {
+            await fetch(`/api/rooms/${roomData.roomId}/timer/start`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        };
+    }
 
+    if(btnStop) {
+        btnStop.disabled = !roomData.timerRunning;
+        btnStop.onclick = async () => {
+            await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        };
+    }
 
-    document.getElementById('btnStopTimer').onclick = async () => {
-        await fetch(`/api/rooms/${roomData.roomId}/timer/stop`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-    };
-
-
-
-    // Leave Logic...
     document.getElementById('btnLeave').onclick = () => {
-        if(socket) {
-            socket.emit('leave_room', { roomId: roomData.roomId, userId: myUser.id });
-        }
+        if(socket) socket.emit('leave_room', { roomId: roomData.roomId, userId: myUser.id });
         loadHomePage();
     };
+
+    // Start Timer Display
+    startCountdown(roomData);
+
+    // --- DEFINE KICK FUNCTION (Inside scope to access roomData) ---
+    window.kickUser = (targetUserId) => {
+        if(!confirm("Are you sure you want to remove this user?")) return;
+
+        if (socket) {
+            socket.emit('kick_user', {
+                roomId: roomData.roomId,
+                targetUserId: targetUserId,
+                token: token // Send token for verification
+            });
+        }
+    };
+}
+
+// --- HELPER FUNCTIONS ---
+
+// NEW: Render User List with Kick Buttons
+function renderUserList(users, hostId, myId) {
+    const container = document.getElementById('userListContainer');
+    if (!container) return;
+
+    container.innerHTML = users.map(u => {
+        const isMe = u.userId === myId;
+        const isTargetHost = u.userId === hostId;
+        const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
+
+        // Show kick button IF: I am the host AND target is not me
+        const iAmHost = (myId === hostId);
+        const canKick = iAmHost && !isMe;
+
+        return `
+            <div class="user-list-item">
+                <div class="ul-avatar" style="background-image: url('${img}')"></div>
+                <div class="ul-info">
+                    <div class="ul-name">
+                        ${u.username} ${isMe ? '(You)' : ''}
+                    </div>
+                    <div class="ul-role">
+                        ${isTargetHost ? '👑 Host' : 'Participant'}
+                    </div>
+                </div>
+                ${canKick ? `
+                    <div class="btn-kick" 
+                         title="Remove User" 
+                         onclick="kickUser('${u.userId}')">
+                         ✕
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
 function renderAvatars(users, roomId, myUserId) {
     const stage = document.getElementById('avatarStage');
     if(!stage) return;
 
-    // 1. Render HTML with positions
     stage.innerHTML = users.map(u => {
         const img = u.avatarUrl || 'https://ui-avatars.com/api/?background=random&name=' + (u.username || 'User');
         const task = u.currentTask || "Working";
-
-        // Use server coordinates or default to center
         const posX = u.x !== undefined ? u.x : 50;
         const posY = u.y !== undefined ? u.y : 50;
 
@@ -195,7 +236,6 @@ function renderAvatars(users, roomId, myUserId) {
             <div class="avatar-char" 
                  data-userid="${u.userId}"
                  style="left: ${posX}%; top: ${posY}%;">
-                 
                 <div class="char-body" style="background-image: url('${img}');"></div>
                 <div class="char-name">
                     ${u.username} <br>
@@ -205,28 +245,21 @@ function renderAvatars(users, roomId, myUserId) {
         `;
     }).join('');
 
-    // 2. Add Interactions (Click & Drag)
     document.querySelectorAll('.avatar-char').forEach(el => {
         const targetUserId = el.getAttribute('data-userid');
         const isMe = (targetUserId === myUserId);
 
-        // -- Click Handling (Reactions) --
         el.onclick = (e) => {
-            // Only allow clicking OTHERS for reactions
-            // But dragging works for ME
-            if (isDragOccurred) return; // Don't show menu if we just dragged
-            if (isMe) return;
-
+            if (isDragOccurred) return;
+            if (isMe) return; // No self-reactions
             e.stopPropagation();
             openReactionMenu(e.clientX, e.clientY, targetUserId, roomId);
         };
 
-        // -- Drag Handling (Only for MY avatar) --
-        if (isMe) {
-            makeDraggable(el, roomId, myUserId);
-        }
+        if (isMe) makeDraggable(el, roomId, myUserId);
     });
 }
+
 let isDragOccurred = false;
 
 function makeDraggable(el, roomId, userId) {
@@ -234,73 +267,57 @@ function makeDraggable(el, roomId, userId) {
     const stage = document.getElementById('avatarStage');
 
     el.onmousedown = (e) => {
-        e.preventDefault(); // Prevent default selection
+        e.preventDefault();
         isDragOccurred = false;
-
         startX = e.clientX;
         startY = e.clientY;
-
-        // Get current percentages
         initialLeft = parseFloat(el.style.left);
         initialTop = parseFloat(el.style.top);
-
-        // Add global listeners for drag
         document.onmousemove = onMouseMove;
         document.onmouseup = onMouseUp;
     };
 
     function onMouseMove(e) {
-        // Calculate movement
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isDragOccurred = true;
 
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-            isDragOccurred = true;
-        }
-
-        // Convert pixels to percentage of stage
         const stageRect = stage.getBoundingClientRect();
         const percentX = (dx / stageRect.width) * 100;
         const percentY = (dy / stageRect.height) * 100;
 
-        // Apply new position
-        el.style.left = (initialLeft + percentX) + '%';
-        el.style.top = (initialTop + percentY) + '%';
+        // Clamp to screen (5% to 95%)
+        let newLeft = Math.max(5, Math.min(95, initialLeft + percentX));
+        let newTop = Math.max(5, Math.min(95, initialTop + percentY));
+
+        el.style.left = newLeft + '%';
+        el.style.top = newTop + '%';
     }
 
     function onMouseUp(e) {
         document.onmousemove = null;
         document.onmouseup = null;
 
-        if (isDragOccurred) {
-            // Finalize position
+        if (isDragOccurred && socket) {
             const finalLeft = parseFloat(el.style.left);
             const finalTop = parseFloat(el.style.top);
-
-            // Send to server
-            if(socket) {
-                socket.emit('move_avatar', {
-                    roomId,
-                    userId,
-                    x: finalLeft,
-                    y: finalTop
-                });
-            }
+            socket.emit('move_avatar', { roomId, userId, x: finalLeft, y: finalTop });
         }
     }
 }
 
-
 function openReactionMenu(x, y, targetUserId, roomId) {
-    // Remove existing menu if any
     const existing = document.getElementById('reactionMenu');
     if (existing) existing.remove();
 
     const menu = document.createElement('div');
     menu.id = 'reactionMenu';
     menu.className = 'reaction-menu';
-    menu.style.left = x + 'px';
-    menu.style.top = (y - 50) + 'px'; // Show slightly above cursor
+
+    // --- KEY FIX: Hide & Disable Animation for Measuring ---
+    // We must measure the menu at FULL size (scale 1) to know if it fits.
+    menu.style.visibility = 'hidden';
+    menu.style.animation = 'none';
 
     const smilies = ['🙂', '☹️', '❤️', '👍', '👎','🤣','💀','✨','🙀','😭','🦄','🦐'];
 
@@ -308,15 +325,7 @@ function openReactionMenu(x, y, targetUserId, roomId) {
         const span = document.createElement('span');
         span.textContent = emoji;
         span.onclick = () => {
-            console.log("Clicked emoji:", emoji); // DEBUG LOG
-
-            if (socket) {
-                console.log("Sending reaction via socket...", roomId, targetUserId); // DEBUG LOG
-                socket.emit('send_reaction', { roomId, targetUserId, reaction: emoji });
-            } else {
-                console.error("Socket is NULL! Cannot send reaction."); // ERROR LOG
-            }
-
+            if (socket) socket.emit('send_reaction', { roomId, targetUserId, reaction: emoji });
             menu.remove();
         };
         menu.appendChild(span);
@@ -324,88 +333,61 @@ function openReactionMenu(x, y, targetUserId, roomId) {
 
     document.body.appendChild(menu);
 
-    // Close menu if clicking elsewhere
+    // 1. Measure the Menu (Now it is full size)
+    const rect = menu.getBoundingClientRect();
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const margin = 20;
+
+    let finalX = x;
+    let finalY = y - 50; // Default: above cursor
+
+    // 2. Adjust Horizontal Position
+    // If it goes off the RIGHT edge:
+    if (finalX + rect.width > screenW - margin) {
+        finalX = screenW - rect.width - margin;
+    }
+    // If it goes off the LEFT edge (e.g. on mobile):
+    if (finalX < margin) {
+        finalX = margin;
+    }
+
+    // 3. Adjust Vertical Position
+    // If it goes off the TOP edge:
+    if (finalY < margin) {
+        finalY = y + 20; // Flip to below the cursor
+    }
+    // If it goes off the BOTTOM edge:
+    if (finalY + rect.height > screenH - margin) {
+        finalY = screenH - rect.height - margin;
+    }
+
+    // 4. Apply Calculated Position
+    menu.style.left = finalX + 'px';
+    menu.style.top = finalY + 'px';
+
+    // --- RESTORE ANIMATION ---
+    // Force a browser reflow (read a property) so the 'none' animation applies immediately
+    void menu.offsetWidth;
+
+    // Now re-enable the CSS animation and show the menu
+    menu.style.animation = '';
+    menu.style.visibility = '';
+
+    // 5. Cleanup Listener
     const closeMenu = () => {
         if (menu.parentNode) menu.remove();
         document.removeEventListener('click', closeMenu);
     };
-    // Timeout to prevent immediate closing from the current click event
     setTimeout(() => document.addEventListener('click', closeMenu), 10);
 }
 
 function showReactionOnAvatar(userId, emoji) {
-    // Find the avatar element
     const avatarEl = document.querySelector(`.avatar-char[data-userid="${userId}"]`);
     if (!avatarEl) return;
-
-    // Create floating element
     const floatEl = document.createElement('div');
     floatEl.textContent = emoji;
     floatEl.className = 'floating-reaction';
-
     avatarEl.appendChild(floatEl);
-
-    // Remove after animation (1.5s)
-    setTimeout(() => {
-        floatEl.remove();
-    }, 1500);
+    setTimeout(() => floatEl.remove(), 1500);
 }
-
-/**
- * fe/room.page.js
- * Handles the Active Room View.
- */
-/** 
-import { loadHomePage } from './home.page.js';
-
-export function loadRoomPage(roomData) {
-    const app = document.getElementById('app');
-    
-    // 1. Apply Theme to Body
-    // Reset previous themes first
-    document.body.className = ''; 
-    if (roomData.settings && roomData.settings.theme) {
-        document.body.classList.add(`theme-${roomData.settings.theme}`);
-    }
-
-    // 2. Render Room HTML
-    app.innerHTML = `
-        <div class="container room-container">
-            <div class="card" style="max-width: 600px; margin: 0 auto;">
-                <h2 style="color:var(--muted); text-transform:uppercase; font-size:0.9rem; letter-spacing:1px;">Current Session</h2>
-                
-                <h1 style="margin: 10px 0;">${roomData.name || "Focus Room"}</h1>
-                
-                <div style="margin-bottom: 20px;">
-                    <span style="color:var(--muted);">Room Code:</span><br>
-                    <div class="room-code-badge">${roomData.roomCode || "----"}</div>
-                </div>
-
-                <div class="timer-display">
-                    ${roomData.task?.time || "25"}:00
-                </div>
-
-                <div class="task-focus">
-                    <span style="color:var(--muted); font-size:1rem;">Focusing on:</span><br>
-                    ${roomData.settings.taskName || "Just Working"}
-                </div>
-
-                <div style="margin-top: 30px; display:flex; justify-content:center; gap:10px;">
-                     <button class="btn" onclick="alert('Pause not implemented yet')">Pause</button>
-                     <button id="btnLeave" class="btn logout">Leave Room</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Leave Room
-    document.getElementById('btnLeave').onclick = () => {
-        if(confirm("Are you sure you want to leave this session?")) {
-            // Reset theme
-            document.body.className = '';
-            // Go back to home
-            loadHomePage(); 
-        }
-    };
-}
-    */

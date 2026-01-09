@@ -132,6 +132,26 @@ class RoomManager {
 
         return room;
     }
+    async kickUser(roomId, requesterId, targetUserId) {
+        const roomKey = keyRoom(roomId);
+        const roomDataString = await client.get(roomKey);
+        if (!roomDataString) throw new Error("Room not found");
+
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        // 1. Security Check: Only Host can kick
+        if (room._host.userId !== requesterId) {
+            throw new Error("Only the host can kick users");
+        }
+
+        // 2. Remove the user
+        room.removeUser(targetUserId);
+
+        // 3. Save updated room
+        await client.set(roomKey, JSON.stringify(room.toJSON()), { EX: 86400 });
+
+        return room;
+    }
 }
 
 module.exports = new RoomManager();
