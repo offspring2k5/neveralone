@@ -4,6 +4,7 @@
 import { loadHomePage } from './home.page.js';
 import { me } from './auth.js';
 import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+import { showConfirm, showPrompt, showAlert } from "./ui.js";
 
 let countdownInterval = null;
 let socket = null;
@@ -56,10 +57,9 @@ export async function loadRoomPage(roomData) {
         });
 
         // Kick Listener
-        socket.off('kicked_notification');
-        socket.on('kicked_notification', (kickedId) => {
+        socket.on('kicked_notification', async (kickedId) => {
             if (kickedId === myUser.id) {
-                alert("You have been kicked from the room.");
+                await showAlert("Kicked", "You have been kicked from the room.");
                 if(socket) socket.disconnect();
                 window.location.href = '/';
             }
@@ -228,7 +228,10 @@ export async function loadRoomPage(roomData) {
     const btnReset = document.getElementById('btnResetTimer');
     if (btnReset) {
         btnReset.onclick = async () => {
-            if(!confirm("Reset timer to 00:00?")) return;
+            // OLD: if(!confirm("Reset timer to 00:00?")) return;
+            const yes = await showConfirm("Reset Timer", "Reset timer to 00:00?");
+            if(!yes) return;
+
             await fetch(`/api/rooms/${roomData.roomId}/timer/reset`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -241,7 +244,9 @@ export async function loadRoomPage(roomData) {
         const timerDisplay = document.querySelector('.mini-timer');
         if(timerDisplay) {
             timerDisplay.onclick = async () => {
-                const newTime = prompt("Set timer duration (minutes):", roomData.timerDuration || 25);
+                // OLD: prompt(...)
+                const newTime = await showPrompt("Change Timer", "Set timer duration (minutes):", roomData.timerDuration || 25);
+
                 if (newTime && !isNaN(newTime)) {
                     await fetch(`/api/rooms/${roomData.roomId}/settings`, {
                         method: 'PUT',
@@ -259,8 +264,9 @@ export async function loadRoomPage(roomData) {
     // Add Task Button
     const btnAdd = document.getElementById('btnAddTask');
     if (btnAdd) {
-        btnAdd.onclick = () => {
-            const text = prompt("What is your task?");
+        btnAdd.onclick = async () => {
+
+            const text = await showPrompt("New Task", "What is your task?");
             if (text && text.trim() !== "") {
                 socket.emit('create_task', { roomId: roomData.roomId, userId: myUser.id, text: text.trim() });
             }
@@ -277,8 +283,11 @@ export async function loadRoomPage(roomData) {
     startCountdown(roomData);
 
     // Expose Kick Function globally
-    window.kickUser = (targetUserId) => {
-        if(!confirm("Are you sure you want to remove this user?")) return;
+    window.kickUser = async (targetUserId) => {
+        // OLD: if(!confirm("Are you sure you want to remove this user?")) return;
+        const yes = await showConfirm("Kick User", "Are you sure you want to remove this user?");
+        if(!yes) return;
+
         if (socket) {
             socket.emit('kick_user', {
                 roomId: roomData.roomId,

@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const usersStore = require('./usersStore');
-const SHOP_ITEMS = require('./ShopConfig'); // Must match filename case!
+const SHOP_ITEMS = require('./ShopConfig');
 const { requireAuth } = require('./middleware');
 
 // Get Shop Items + User Inventory
@@ -46,6 +46,23 @@ router.post('/buy', requireAuth, async (req, res) => {
         res.json({ success: true, points: updatedUser.points, inventory: updatedUser.inventory });
 
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- NEW: Cheat Endpoint ---
+router.post('/cheat', requireAuth, async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) return res.status(400).json({ error: "No code provided" });
+
+        if (code === "rosebud" || code === "kaching") {
+            const updatedUser = await usersStore.changeUserPoints(req.user.id, 1000);
+            return res.json({ success: true, message: "Cheat activated! +1000 Points", points: updatedUser.points });
+        }
+
+        return res.status(400).json({ error: "Invalid code" });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;

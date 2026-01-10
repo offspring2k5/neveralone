@@ -1086,3 +1086,34 @@ select option:disabled {
     color: var(--muted);
     font-style: italic;
 }
+.custom-ui-modal {
+    z-index: 10000; /* Ensure it's above everything else */
+    background: rgba(0, 0, 0, 0.6); /* Slightly darker */
+    backdrop-filter: blur(4px);
+}
+
+.custom-ui-modal .modal-box {
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    border: 1px solid var(--accent);
+}
+
+.ui-prompt-input {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    color: white;
+    font-size: 1rem;
+    outline: none;
+}
+.ui-prompt-input:focus {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes popIn {
+    from { opacity: 0; transform: scale(0.9) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Restricts the name input width so it doesn't stretch fully */

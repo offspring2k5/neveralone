@@ -3,7 +3,8 @@
  * Profile & Avatar Editor
  */
 import { me, getToken, clearToken } from "./auth.js";
-import { patchJson } from "./api.js";
+import { patchJson, postJson } from "./api.js";
+import { showPrompt, showAlert } from "./ui.js";
 
 const pName = document.getElementById("pName");
 const pEmail = document.getElementById("pEmail");
@@ -25,7 +26,7 @@ const emojiGrid = document.getElementById("emojiGrid");
 const mashupPreview = document.getElementById("mashupPreview");
 const mashupPlaceholder = document.getElementById("mashupPlaceholder");
 const saveMashupBtn = document.getElementById("saveMashupBtn");
-
+const cheatTrigger = document.getElementById("cheatTrigger");
 // --- EMOJI PACKS ---
 const PACKS = {
     'pack_basic': ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😙","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🤭","🤫","🤥","😶","😐","😑","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾"],
@@ -337,6 +338,30 @@ saveMashupBtn?.addEventListener("click", async () => {
         console.error("MASHUP SAVE ERROR:", err);
         setMsg("error", err.message || "Fehler beim Speichern.");
         saveMashupBtn.disabled = false;
+    }
+});
+
+cheatTrigger?.addEventListener("click", async () => {
+    const token = getToken();
+    if (!token) return;
+
+
+    const code = await showPrompt("Dev Tools", ""); // No description, empty default
+    if (!code) return;
+
+
+    try {
+        const res = await postJson("/api/shop/cheat", { code }, { Authorization: `Bearer ${token}` });
+
+
+        if (res.success) {
+            await showAlert("Success", res.message);
+
+            loadProfile();
+        }
+    } catch (err) {
+        console.error("Cheat error:", err);
+        setMsg("error", "Code invalid.");
     }
 });
 

@@ -5,6 +5,7 @@
 
 import { me, getToken, clearToken } from "./auth.js";
 import { postJson } from "./api.js";
+import { showConfirm, showAlert } from "./ui.js";
 
 export async function loadHomePage() {
     const app = document.getElementById('app');
@@ -270,20 +271,29 @@ async function bindEventsAndLoadUser() {
     const btnRejoin = document.getElementById('btnRejoin');
     if (btnRejoin) {
         btnRejoin.onclick = async () => {
-            const lastRoomString = localStorage.getItem('lastRoom');
-            if (!lastRoomString) return;
-            const lastRoom = JSON.parse(lastRoomString);
-            if(lastRoom.roomCode) {
+            // --- FIX: Read from storage again, because 'lastRoom' is not defined in this scope ---
+            const stored = localStorage.getItem('lastRoom');
+            if (!stored) return;
+
+            let lastRoomData;
+            try {
+                lastRoomData = JSON.parse(stored);
+            } catch (e) {
+                return;
+            }
+
+            if(lastRoomData && lastRoomData.roomCode) {
                 try {
-                    const data = await postJson('/api/rooms/join', { code: lastRoom.roomCode, task: "Rejoining..." }, headers);
+                    const data = await postJson('/api/rooms/join', { code: lastRoomData.roomCode, task: "Rejoining..." }, headers);
                     if (data.success) {
                         const { loadRoomPage } = await import("./room.page.js");
                         loadRoomPage(data);
                     }
                 } catch(e) {
-                    alert("Could not rejoin room. It may have expired.");
+                    await showAlert("Rejoin Failed", "Could not rejoin room. It may have expired.");
                     localStorage.removeItem('lastRoom');
-                    location.reload();
+                    // Remove the button immediately to avoid confusion
+                    btnRejoin.style.display = 'none';
                 }
             }
         };
@@ -292,7 +302,10 @@ async function bindEventsAndLoadUser() {
 
 // Global Shop Logic
 window.buyItem = async (itemId) => {
-    if(!confirm("Buy this item?")) return;
+    // OLD: if(!confirm("Buy this item?")) return;
+    const confirmed = await showConfirm("Confirm Purchase", "Are you sure you want to buy this item?");
+    if (!confirmed) return;
+
     const token = getToken();
     try {
         const res = await fetch('/api/shop/buy', {
@@ -302,13 +315,13 @@ window.buyItem = async (itemId) => {
         });
         const data = await res.json();
         if (data.success) {
-            alert("Purchase successful!");
-            openShop(); // Refresh UI
+            await showAlert("Success", "Purchase successful!"); // OLD: alert()
+            openShop();
             document.getElementById('pointPill').textContent = `⭐ ${data.points}`;
             localStorage.setItem('inventory', JSON.stringify(data.inventory));
             updateThemeDropdown(data.inventory);
         } else {
-            alert(data.error);
+            await showAlert("Error", data.error); // OLD: alert()
         }
     } catch(e) { console.error(e); }
 };

@@ -12,7 +12,7 @@
         <div class="brand">
             <div class="logo" aria-hidden="true"></div>
             <div>
-                <h1>Profil</h1>
+                <h1>Profil <span id="cheatTrigger" style="cursor:pointer; opacity:0.1; font-size: 16px; vertical-align: super;" title="Dev Tools">#</span></h1>
                 <p>Deine Account-Daten</p>
             </div>
         </div>
@@ -23,89 +23,77 @@
         </div>
     </div>
 
-    <div class="grid">
-        <!-- Links -->
-        <div class="card">
-            <h2>Übersicht</h2>
-            <p class="muted" style="margin-top:0;"></p>
+    <div class="card" style="max-width: 600px; margin: 0 auto;">
 
-            <div class="toast" id="profileMsg" style="display:none;"></div>
+        <h2>Übersicht</h2>
+        <div class="toast" id="profileMsg" style="display:none; margin-bottom: 20px;"></div>
 
-            <div class="profileHeader">
-                <div class="avatarBox">
-                    <img id="avatarImg" alt="Avatar" style="display:none;">
-                    <div id="avatarFallback" class="avatarInitial" aria-hidden="true">?</div>
-                </div>
-
-                <div class="profileMeta">
-                    <div class="nameLine" id="pName">…</div>
-                    <div class="mailLine" id="pEmail">…</div>
-                </div>
+        <div class="profileHeader">
+            <div class="avatarBox">
+                <img id="avatarImg" alt="Avatar" style="display:none;">
+                <div id="avatarFallback" class="avatarInitial" aria-hidden="true">?</div>
             </div>
 
-            <form class="form" id="avatarForm" style="margin-top:10px;">
-                <label>Avatar (PNG/JPG/WEBP, max 2MB)
-                    <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" required />
-                </label>
-                <div class="row">
-                    <button class="btn primary" type="submit">Avatar speichern</button>
+            <div class="profileMeta">
+                <div class="nameLine" id="pName">…</div>
+                <div class="mailLine" id="pEmail">…</div>
+                <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                    Mitglied seit: <span id="pCreatedAt">…</span>
                 </div>
-            </form>
-
-            <div class="row" style="gap:12px;margin-top:12px;align-items:flex-start;flex-direction:column;">
-                <div><span class="muted">Erstellt am:</span> <b id="pCreatedAt">…</b></div>
-            </div>
-
-            <div class="emoji-section">
-                <h3>Emoji Kitchen 🧑‍🍳</h3>
-                <p class="muted" style="margin-top:4px; font-size:13px;">
-                    Mixe zwei Emojis zu einem neuen Avatar!
-                </p>
-
-                <div class="mashup-controls">
-                    <div id="slot1" class="mashup-slot selected" title="Emoji 1 wählen">?</div>
-                    <div style="font-size:18px; color:var(--muted);">+</div>
-                    <div id="slot2" class="mashup-slot" title="Emoji 2 wählen">?</div>
-
-                    <div style="font-size:18px; color:var(--muted); margin:0 4px;">=</div>
-
-                    <div class="mashup-result">
-                        <img id="mashupPreview" style="display:none;" alt="Mashup" />
-                        <span id="mashupPlaceholder" class="muted" style="font-size:24px;">?</span>
-                    </div>
-                </div>
-
-                <div id="emojiGrid" class="emoji-grid"></div>
-
-                <div class="row" style="margin-top:12px; justify-content:center;">
-                    <button id="saveMashupBtn" class="btn primary" type="button" disabled>
-                        Als Avatar speichern
-                    </button>
-                </div>
-            </div>
-
-            <div class="row" style="gap:12px;margin-top:24px;align-items:flex-start;flex-direction:column;">
-                <div><span class="muted">Erstellt am:</span> <b id="pCreatedAt">…</b></div>
             </div>
         </div>
-        </div>
 
-        <!-- Rechts -->
-        <div class="card">
-            <h2>Name ändern</h2>
-            <p class="muted" style="margin-top:0;"></p>
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 24px 0;">
 
-            <form class="form" id="nameForm">
-                <label>Neuer Name
-                    <input id="newName" type="text" autocomplete="name" placeholder="z.B. Zera"
-                           minlength="2" maxlength="30" required />
-                </label>
+        <h3>Einstellungen</h3>
 
-                <div class="row">
+        <form class="form" id="nameForm" style="margin-bottom: 24px;">
+            <label>Anzeigename ändern
+                <div style="display: flex; gap: 10px;">
+                    <input id="newName" type="text" autocomplete="name" placeholder="Neuer Name"
+                           minlength="2" maxlength="30" required style="flex:1;" />
                     <button class="btn primary" type="submit">Speichern</button>
                 </div>
-            </form>
+            </label>
+        </form>
+
+        <form class="form" id="avatarForm">
+            <label>Neues Profilbild hochladen (max 2MB)
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" required style="flex:1;" />
+                    <button class="btn" type="submit">Hochladen</button>
+                </div>
+            </label>
+        </form>
+
+        <div class="emoji-section" style="margin-top: 30px;">
+            <h3>Emoji Kitchen 🧑‍🍳</h3>
+            <p class="muted" style="margin-top:4px; font-size:13px;">
+                Mixe zwei Emojis zu einem neuen Avatar!
+            </p>
+
+            <div class="mashup-controls">
+                <div id="slot1" class="mashup-slot selected" title="Emoji 1 wählen">?</div>
+                <div style="font-size:18px; color:var(--muted);">+</div>
+                <div id="slot2" class="mashup-slot" title="Emoji 2 wählen">?</div>
+
+                <div style="font-size:18px; color:var(--muted); margin:0 4px;">=</div>
+
+                <div class="mashup-result">
+                    <img id="mashupPreview" style="display:none;" alt="Mashup" />
+                    <span id="mashupPlaceholder" class="muted" style="font-size:24px;">?</span>
+                </div>
+            </div>
+
+            <div id="emojiGrid" class="emoji-grid"></div>
+
+            <div class="row" style="margin-top:12px; justify-content:center;">
+                <button id="saveMashupBtn" class="btn primary" type="button" disabled>
+                    Als Avatar speichern
+                </button>
+            </div>
         </div>
+
     </div>
 </div>
 
