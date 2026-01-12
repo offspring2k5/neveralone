@@ -150,8 +150,8 @@ export async function loadRoomPage(roomData) {
 
     // --- RENDER HTML ---
     document.body.className = '';
-    if (roomData.settings?.theme) document.body.classList.add(`theme-${roomData.settings.theme}`);
-
+    const themeId = roomData.settings?.theme || 'default';
+    applyRoomTheme(themeId);
     const participants = roomData.activeParticipants || [];
     const myParticipantEntry = participants.find(p => p.userId === myUser.id) || {};
     const myTask = myParticipantEntry.currentTask || "Focusing";
@@ -645,4 +645,34 @@ function showReactionOnAvatar(userId, emoji) {
     floatEl.className = 'floating-reaction';
     avatarEl.appendChild(floatEl);
     setTimeout(() => floatEl.remove(), 1500);
+}
+async function applyRoomTheme(themeId) {
+    // Note: In a real app, you might want to cache this response
+    const token = localStorage.getItem('token');
+    let items = [];
+    try {
+        const res = await fetch('/api/shop', { headers: { 'Authorization': `Bearer ${token}` }});
+        const data = await res.json();
+        items = data.items || [];
+    } catch(e) { console.error("Could not load theme details", e); }
+
+    const theme = items.find(i => i.id === themeId);
+    
+    // Default Fallbacks
+    const bgImage = theme?.image || "https://plus.unsplash.com/premium_photo-1661875977781-adbb21036841?w=1600&fit=crop";
+    const bgGradient = theme?.gradient || "linear-gradient(160deg, #0b1020, #0f1b3d)";
+    const timerColor = theme?.tint || "#65f0c7";
+
+    // Apply Styles
+    const roomScene = document.querySelector('.room-scene');
+    const timerEl = document.querySelector('.mini-timer');
+
+    // Set Background Image
+    if(roomScene) roomScene.style.backgroundImage = `url('${bgImage}')`;
+    
+    // Set Body Gradient (The atmosphere behind the image)
+    document.body.style.background = bgGradient;
+
+    // Set Timer Color
+    if(timerEl) timerEl.style.color = timerColor;
 }
