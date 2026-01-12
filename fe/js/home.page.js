@@ -174,7 +174,20 @@ export async function loadHomePage() {
 }
 
 async function bindEventsAndLoadUser() {
-    // --- LOAD USER ---
+    const token = getToken();
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    // --- 1. FETCH SHOP DATA (Needed for Dropdown) ---
+    let allShopItems = [];
+    try {
+        const res = await fetch('/api/shop', { headers });
+        if (res.ok) {
+            const data = await res.json();
+            allShopItems = data.items || [];
+        }
+    } catch (e) { console.error("Could not load shop items", e); }
+
+    // --- 2. LOAD USER ---
     try {
         const data = await me();
         const u = data.user || {};
@@ -183,116 +196,38 @@ async function bindEventsAndLoadUser() {
         document.getElementById("userEmailDisplay").textContent = u.email || "";
         document.getElementById("pointPill").textContent = `⭐ ${u.points ?? 0}`;
 
-        // --- FIX: IMMEDIATELY LOCK THEMES BASED ON INVENTORY ---
         const inventory = u.inventory || [];
-        updateThemeDropdown(inventory);
         localStorage.setItem('inventory', JSON.stringify(inventory));
-        // --------------------------------------------------------
 
+        // PASS BOTH INVENTORY AND SHOP ITEMS
+        updateThemeDropdown(inventory, allShopItems);
+
+        // ... rest of user loading (avatars etc) ...
         const initial = (u.displayName?.[0] || u.email?.[0] || "?").toUpperCase();
-        const fallbackEls = [document.getElementById("userAvatarFallback"), document.getElementById("bigAvatarFallback")];
-        const imgEls = [document.getElementById("userAvatarImg"), document.getElementById("bigAvatarImg")];
+        // ... (keep existing avatar logic) ...
 
-        fallbackEls.forEach(el => el.textContent = initial);
-
-        if (u.avatarUrl) {
-            imgEls.forEach(img => {
-                img.src = u.avatarUrl;
-                img.onload = () => { img.style.display = "block"; };
-                img.nextElementSibling.style.display = "none";
-            });
-        } else {
-            fallbackEls.forEach(el => el.style.display = "block");
-        }
     } catch (err) {
-        console.error("User load error", err);
-        if (err?.status === 401) {
-            clearToken();
-            window.location.replace("/index.html");
-        }
+        // ... (keep existing error handling) ...
     }
 
-    // --- BUTTON BINDINGS ---
-    document.getElementById("logoutBtn").onclick = () => {
-        clearToken();
-        window.location.replace("/index.html");
+    // ... (keep existing button bindings) ...
+
+    // --- UPDATED: Global Shop Logic Updates Dropdown ---
+    window.buyItem = async (itemId) => {
+        // ... (existing logic) ...
+        if (data.success) {
+            // ...
+            // PASS allShopItems HERE TOO
+            updateThemeDropdown(data.inventory, allShopItems);
+        }
+        // ...
     };
 
-    const modal = document.getElementById('createModal');
-    document.getElementById('btnOpenModal').onclick = () => modal.classList.add('open');
-    document.getElementById('btnCancel').onclick = () => modal.classList.remove('open');
-
-    // SHOP BINDINGS
-    const shopModal = document.getElementById('shopModal');
-    document.getElementById('btnShop').onclick = () => openShop();
-    document.getElementById('btnCloseShop').onclick = () => shopModal.classList.remove('open');
-
-    // API ACTIONS
-    const token = getToken();
-    const headers = { 'Authorization': `Bearer ${token}` };
-
-    document.getElementById('btnCreateConfirm').onclick = async () => {
-        const task = document.getElementById('confTask').value || "Working";
-        const theme = document.getElementById('confTheme').value;
-        let time = parseInt(document.getElementById('confTime').value);
-        const autoStartTimer = document.getElementById('confAutoStart').checked;
-        const customMinutes = parseInt(document.getElementById('confMinutes').value);
-        if (!isNaN(customMinutes) && customMinutes > 0) time = customMinutes;
-
-        try {
-            const data = await postJson('/api/rooms/create', { task, time, theme, autoStartTimer }, headers);
-            if (data.success) {
-                modal.classList.remove('open');
-                const { loadRoomPage } = await import("./room.page.js");
-                loadRoomPage(data);
-            }
-        } catch (e) { alert(e.message || "Connection Failed"); }
-    };
-
-    document.getElementById('btnJoin').onclick = async () => {
-        const code = document.getElementById('joinCodeInput').value;
-        const task = document.getElementById('joinTaskInput').value || "Collaborating";
-        if(!code) return alert("Please enter a code");
-
-        try {
-            const data = await postJson('/api/rooms/join', { code, task }, headers);
-            if (data.success) {
-                const { loadRoomPage } = await import("./room.page.js");
-                loadRoomPage(data);
-            }
-        } catch (e) { alert(e.message || "Room not found"); }
-    };
-
-    // Rejoin Logic
-    const btnRejoin = document.getElementById('btnRejoin');
-    if (btnRejoin) {
-        btnRejoin.onclick = async () => {
-            // --- FIX: Read from storage again, because 'lastRoom' is not defined in this scope ---
-            const stored = localStorage.getItem('lastRoom');
-            if (!stored) return;
-
-            let lastRoomData;
-            try {
-                lastRoomData = JSON.parse(stored);
-            } catch (e) {
-                return;
-            }
-
-            if(lastRoomData && lastRoomData.roomCode) {
-                try {
-                    const data = await postJson('/api/rooms/join', { code: lastRoomData.roomCode, task: "Rejoining..." }, headers);
-                    if (data.success) {
-                        const { loadRoomPage } = await import("./room.page.js");
-                        loadRoomPage(data);
-                    }
-                } catch(e) {
-                    await showAlert("Rejoin Failed", "Could not rejoin room. It may have expired.");
-                    localStorage.removeItem('lastRoom');
-                    // Remove the button immediately to avoid confusion
-                    btnRejoin.style.display = 'none';
-                }
-            }
-        };
+    async function openShop() {
+        // ... (existing logic) ...
+        // PASS allShopItems HERE TOO (data.items comes from the fresh fetch inside openShop)
+        updateThemeDropdown(data.inventory, data.items);
+        // ...
     }
 }
 function updateThemeDropdown(inventory, allShopItems) {
@@ -394,27 +329,5 @@ function renderShop(items, inventory, points) {
     }
 }
 
-function updateThemeDropdown(inventory) {
-    const select = document.getElementById('confTheme');
-    if (!select) return;
-    const mapping = { 'theme_cozy': 'cozy', 'theme_forest': 'forest', 'theme_space': 'space' };
-
-    // Default inventory fallback if null
-    if (!inventory) inventory = [];
-
-    Array.from(select.options).forEach(opt => {
-        if (opt.value === 'default') return; // Always enabled
-        const shopId = Object.keys(mapping).find(key => mapping[key] === opt.value);
-        if (shopId) {
-            if (inventory.includes(shopId)) {
-                opt.disabled = false;
-                opt.textContent = opt.textContent.replace(' 🔒', '');
-            } else {
-                opt.disabled = true;
-                if (!opt.textContent.includes('🔒')) opt.textContent += ' 🔒';
-            }
-        }
-    });
-}
 
 loadHomePage();
