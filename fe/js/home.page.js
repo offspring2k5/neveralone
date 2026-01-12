@@ -139,10 +139,6 @@ export async function loadHomePage() {
                     <label>
                         Room Theme
                         <select id="confTheme">
-                            <option value="default">Default</option>
-                            <option value="cozy">☕ Cozy Fireplace</option>
-                            <option value="forest">🌲 Deep Forest</option>
-                            <option value="space">🚀 Outer Space</option>
                         </select>
                     </label>
                     <div class="row" style="margin-top:10px; justify-content:flex-end;">
@@ -298,6 +294,33 @@ async function bindEventsAndLoadUser() {
             }
         };
     }
+}
+function updateThemeDropdown(inventory, allShopItems) {
+    const select = document.getElementById('confTheme');
+    if (!select) return;
+
+    // Clear existing (keep Default)
+    select.innerHTML = '<option value="default">Default</option>';
+
+    if (!inventory) inventory = [];
+
+    // Filter only themes from the full shop list
+    const themes = allShopItems.filter(i => i.type === 'theme');
+
+    themes.forEach(theme => {
+        const opt = document.createElement('option');
+        // Use the Shop ID (e.g., 'theme_forest') directly as the value
+        opt.value = theme.id; 
+        
+        if (inventory.includes(theme.id)) {
+            opt.textContent = theme.name;
+            opt.disabled = false;
+        } else {
+            opt.textContent = `${theme.name} 🔒`;
+            opt.disabled = true;
+        }
+        select.appendChild(opt);
+    });
 }
 
 // Global Shop Logic
