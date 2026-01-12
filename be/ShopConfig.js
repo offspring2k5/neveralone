@@ -46,9 +46,18 @@ const SHOP_ITEMS = [
         type: 'theme', 
         name: '🏡 The Cottage', 
         price: 1000, 
-        image: 'https://images.unsplash.com/photo-1533085089891-244cb13369b4?w=1600&fit=crop',
+        image: '/user_uploads/themes/cottage.png',
         tint: '#086326',
         gradient: 'linear-gradient(180deg, #054234 0%, #077322 100%)'
+    },
+    {
+        id: 'theme_cullen',
+        type: 'theme',
+        name: '🏡 The Villa',
+        price: 1400,
+        image: '/user_uploads/themes/cullen.jpeg',
+        tint: '#ab1302',
+        gradient: 'linear-gradient(180deg, #ab1302 0%, #03009e 100%)'
     },
 
     // --- EMOJI PACKS ---

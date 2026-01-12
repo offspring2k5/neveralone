@@ -4,36 +4,69 @@
 const express = require('express');
 const router = express.Router();
 const RoomManager = require('./RoomManager');
-const { requireAuth } = require('./middleware'); // Fixed Import
+const usersStore = require('./usersStore');
+const { requireAuth } = require('./middleware');
 
 // Create Room
 router.post('/create', requireAuth, async (req, res) => {
     try {
         const { task, time, theme, autoStartTimer } = req.body;
+
+        // 1. Fetch full user data
+        const fullUser = await usersStore.findUserById(req.user.id);
+        if (!fullUser) return res.status(404).json({ error: "User not found" });
+
+        // 2. Prepare Host Object
+        const hostUser = {
+            userId: fullUser.id,
+            // FIX: Map 'displayName' (from DB) to 'username' (for Room)
+            username: fullUser.displayName,
+            avatarUrl: fullUser.avatarUrl,
+            points: fullUser.points || 0
+        };
+
         const config = {
-            roomName: `${req.user.username}'s Room`,
+            roomName: `${fullUser.displayName}'s Room`,
             hostTask: task,
             time: time,
             theme: theme,
             autoStartTimer: autoStartTimer
         };
-        const room = await RoomManager.createRoom({ userId: req.user.id, username: req.user.username }, config);
+
+        const room = await RoomManager.createRoom(hostUser, config);
         res.json({ success: true, ...room.toJSON() });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Join Room
 router.post('/join', requireAuth, async (req, res) => {
     try {
         const { code, task } = req.body;
-        const room = await RoomManager.joinRoom(
-            { userId: req.user.id, username: req.user.username }, code, task
-        );
+
+        // 1. Fetch full user data
+        const fullUser = await usersStore.findUserById(req.user.id);
+        if (!fullUser) return res.status(404).json({ error: "User not found" });
+
+        // 2. Prepare Participant Object
+        const participantUser = {
+            userId: fullUser.id,
+            // FIX: Map 'displayName' (from DB) to 'username' (for Room)
+            username: fullUser.displayName,
+            avatarUrl: fullUser.avatarUrl,
+            points: fullUser.points || 0
+        };
+
+        const room = await RoomManager.joinRoom(participantUser, code, task);
         res.json({ success: true, ...room.toJSON() });
-    } catch (e) { res.status(404).json({ error: e.message }); }
+    } catch (e) {
+        res.status(404).json({ error: e.message });
+    }
 });
 
-// Timer Routes
+// Timer Routes (Unchanged)
 router.post('/:roomId/timer/start', requireAuth, async (req, res) => {
     try {
         const room = await RoomManager.startTimer(req.params.roomId, req.user.id);
