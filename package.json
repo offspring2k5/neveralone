@@ -13,6 +13,7 @@
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "emoji-mixer": "^1.2.2",
     "express": "^5.2.1",
     "get": "^1.4.0",
     "jsonwebtoken": "^9.0.3",

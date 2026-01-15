@@ -12,6 +12,7 @@ const { requireAuth } = require("./middleware");
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "testpasswort123456";
+const https = require('https');
 
 // --- MULTER SETUP (File Uploads) ---
 const storage = multer.diskStorage({
@@ -42,6 +43,7 @@ const upload = multer({
         cb(new Error("Only images are allowed"));
     }
 });
+
 
 // --- ROUTES ---
 
@@ -141,6 +143,59 @@ router.post("/avatar", requireAuth, upload.single("avatar"), async (req, res) =>
         res.json({ success: true, user: safeUser });
     } catch (e) {
         console.error("Avatar Upload Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+router.post("/avatar-mashup", requireAuth, async (req, res) => {
+    try {
+        const { left, right } = req.body;
+        if (!left || !right) return res.status(400).json({ error: "Missing emojis" });
+
+        // --- FIX: Dynamic Import for ES Module ---
+        // We import the library here because it doesn't support 'require' at the top level
+        const emojiMixerModule = await import('emoji-mixer');
+        const getEmojiMixUrl = emojiMixerModule.default;
+
+        // Generate URL (detailedErrors=true, oldToNew=true)
+        const url = getEmojiMixUrl(left, right, true, true);
+
+        if (!url) {
+            return res.status(400).json({ error: "Diese Kombination ist nicht möglich 😔" });
+        }
+
+        console.log("--> DEBUG: Generated URL:", url);
+
+        // Download and Save the image from Google
+        const filename = `${req.user.id}-${Date.now()}.png`;
+        const uploadDir = path.join(__dirname, "..", "db", "user_uploads", "avatars");
+
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+        const filePath = path.join(uploadDir, filename);
+        const file = fs.createWriteStream(filePath);
+
+        https.get(url, (response) => {
+            if (response.statusCode !== 200) {
+                return res.status(400).json({ error: "Google Image Load Failed" });
+            }
+            response.pipe(file);
+
+            file.on('finish', async () => {
+                file.close();
+                // Update User
+                const avatarUrl = `/user_uploads/avatars/${filename}`;
+                const updatedUser = await usersStore.updateUser(req.user.id, { avatarUrl });
+                const { password, ...safeUser } = updatedUser;
+
+                res.json({ success: true, user: safeUser });
+            });
+        }).on('error', (err) => {
+            fs.unlink(filePath, () => {});
+            res.status(500).json({ error: "Download error" });
+        });
+
+    } catch (e) {
+        console.error("Mashup Error:", e);
         res.status(500).json({ error: e.message });
     }
 });
