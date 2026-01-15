@@ -63,7 +63,13 @@ const SHOP_ITEMS = [
     // --- EMOJI PACKS ---
     { id: 'pack_animals', type: 'pack',   name: '🐶 Animal Pack',    price: 50 },
     { id: 'pack_fun',     type: 'pack',   name: '🎉 Fun & Objects',  price: 50 },
-    { id: 'pack_hearts',  type: 'pack',   name: '❤️ Hearts & Love',  price: 75 }
+    { id: 'pack_hearts',  type: 'pack',   name: '❤️ Hearts & Love',  price: 75 },
+    { id: 'pack_food',    type: 'pack',   name: '🍔 Foodie Pack',    price: 80 },
+    { id: 'pack_nature',  type: 'pack',   name: '🌿 Nature Pack',    price: 80 },
+    { id: 'pack_travel',  type: 'pack',   name: '✈️ Travel Pack',    price: 100 },
+    { id: 'pack_activity',type: 'pack',   name: '⚽ Sports & Play',  price: 90 },
+    { id: 'pack_objects', type: 'pack',   name: '🎒 Objects & Tech', price: 70 }
+
 ];
 
 module.exports = SHOP_ITEMS;
