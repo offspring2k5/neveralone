@@ -76,19 +76,17 @@ export async function loadRoomPage(roomData) {
 
     // --- TIMER LOGIC ---
     function updateButtonState(isRunning, isFinished) {
-        if (!isHost) return;
+
 
         const btnStart = document.getElementById('btnStartTimer');
         const btnStop = document.getElementById('btnStopTimer');
         const btnReset = document.getElementById('btnResetTimer');
 
         if (isRunning && !isFinished) {
-            // State: RUNNING
             if(btnStart) btnStart.style.display = 'none';
             if(btnStop) btnStop.style.display = 'inline-block';
             if(btnReset) btnReset.style.display = 'none';
         } else {
-            // State: PAUSED or FINISHED
             if(btnStart) btnStart.style.display = 'inline-block';
             if(btnStop) btnStop.style.display = 'none';
             if(btnReset) btnReset.style.display = 'inline-block';
@@ -180,13 +178,17 @@ export async function loadRoomPage(roomData) {
             </div>
 
             <div class="room-floor" id="avatarStage">
-                <div id="taskLayer"></div> </div>
+                <div id="taskLayer"></div> 
+            </div>
 
             <div class="room-controls">
-                <button id="btnStartTimer" class="btn primary">Start</button>
-                <button id="btnStopTimer" class="btn secondary">Pause</button>
                 
-                ${isHost ? `<button id="btnResetTimer" class="btn secondary" style="border-color:#ff9f43; color:#ff9f43;">Reset</button>` : ''}
+                <button id="btnStartTimer" class="btn primary">Start</button>
+                <button id="btnStopTimer" class="btn secondary" style="display:none;">Pause</button>
+                
+                ${isHost ? `
+                    <button id="btnResetTimer" class="btn secondary" style="border-color:#ff9f43; color:#ff9f43;">Reset</button>
+                ` : ''}
                 
                 <button id="btnLeave" class="btn logout">Exit</button>
             </div>
