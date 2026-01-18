@@ -66,10 +66,14 @@ class Room {
             const newParticipant = {
                 ...user,
                 currentTask: taskName || "Working",
+                online: true, // <--- NEW: Defaults to Online
                 x: Math.floor(Math.random() * 70) + 10,
                 y: Math.floor(Math.random() * 60) + 20
             };
             this._activeParticipants.push(newParticipant);
+        } else {
+            // If they rejoin, mark them online immediately
+            exists.online = true;
         }
     }
 
@@ -155,6 +159,12 @@ class Room {
         this._tasks = this._tasks.filter(t => t.id !== taskId);
 
         return task.ownerId; // Return owner so Manager can award points
+    }
+    setParticipantOnline(userId, isOnline) {
+        const participant = this._activeParticipants.find(u => u.userId === userId);
+        if (participant) {
+            participant.online = isOnline;
+        }
     }
 
     getRoomId() { return this._roomId; }

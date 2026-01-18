@@ -34,11 +34,15 @@ RoomManager.setIO(io);
 io.on('connection', (socket) => {
     console.log('Socket connected:', socket.id);
 
-    socket.on('join_room', ({ roomId, userId }) => {
+    socket.on('join_room', async ({ roomId, userId }) => {
         socket.join(roomId);
         socket.data.roomId = roomId;
         socket.data.userId = userId;
-        console.log(`Socket ${socket.id} (User: ${userId}) joined room ${roomId}`);
+        console.log(`Socket ${socket.id} joined ${roomId}`);
+
+        // Force a sync to ensure this user is marked "Online"
+        // and fix any other potential mismatches
+        await RoomManager.syncSocketStatus(roomId);
     });
 
     socket.on('send_reaction', ({ roomId, targetUserId, reaction }) => {
@@ -73,10 +77,10 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => {
         const { roomId, userId } = socket.data;
         if (roomId && userId) {
+
             try {
-                const updatedRoom = await RoomManager.removeUser(roomId, userId);
-                if (updatedRoom) io.to(roomId).emit('room_update', updatedRoom.toJSON());
-            } catch (e) { console.error("Disconnect cleanup error:", e); }
+                await RoomManager.syncSocketStatus(roomId);
+            } catch (e) { console.error("Sync error:", e); }
         }
     });
 

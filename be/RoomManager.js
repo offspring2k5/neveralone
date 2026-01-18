@@ -245,6 +245,43 @@ class RoomManager {
         await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
         return room;
     }
+    async syncSocketStatus(roomId) {
+        if (!this.io) return null;
+
+        // 1. Load Room
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) return null;
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        // 2. Ask Socket.io: "Who is actually here?"
+        // This uses the EXISTING sockets. No new connection needed.
+        const activeSockets = await this.io.in(roomId).fetchSockets();
+
+        // 3. Get list of UserIDs that are currently connected
+        const onlineUserIds = new Set(activeSockets.map(s => s.data.userId));
+
+        // 4. Update the room state to match reality
+        let hasChanges = false;
+        const participants = room.getActiveParticipants();
+
+        for (const p of participants) {
+            const isActuallyOnline = onlineUserIds.has(p.userId);
+
+            // Only update/save if status changed
+            if (p.online !== isActuallyOnline) {
+                p.online = isActuallyOnline;
+                hasChanges = true;
+            }
+        }
+
+        // 5. Save and Notify
+        if (hasChanges) {
+            await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+            this.io.to(roomId).emit('room_update', room.toJSON());
+        }
+
+        return room;
+    }
 }
 
 module.exports = new RoomManager();
