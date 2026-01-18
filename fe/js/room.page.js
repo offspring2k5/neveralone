@@ -508,7 +508,7 @@ function makeDraggable(el, roomId, userId) {
 
     el.onmousedown = (e) => {
         e.preventDefault();
-        isDragOccurred = false;
+        isDragOccurred = false; // Reset on start
         startX = e.clientX;
         startY = e.clientY;
         initialLeft = parseFloat(el.style.left);
@@ -542,6 +542,10 @@ function makeDraggable(el, roomId, userId) {
             const finalTop = parseFloat(el.style.top);
             socket.emit('move_avatar', { roomId, userId, x: finalLeft, y: finalTop });
         }
+
+        setTimeout(() => {
+            isDragOccurred = false;
+        }, 50);
     }
 }
 
