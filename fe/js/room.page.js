@@ -76,8 +76,7 @@ export async function loadRoomPage(roomData) {
 
     // --- TIMER LOGIC ---
     function updateButtonState(isRunning, isFinished) {
-        if (!isHost) return;
-
+        // Run for everyone to keep UI in sync
         const btnStart = document.getElementById('btnStartTimer');
         const btnStop = document.getElementById('btnStopTimer');
         const btnReset = document.getElementById('btnResetTimer');
@@ -162,6 +161,21 @@ export async function loadRoomPage(roomData) {
                 </div>
                 
                 <div class="hud-timer-box">
+                    ${isHost ? `
+                    <button id="btnFinishSession" class="btn-icon" title="Finish Session & Mark All Done" style="
+                        background: rgba(46, 204, 113, 0.2); 
+                        border: 1px solid #2ecc71; 
+                        color: #2ecc71; 
+                        width: 32px; height: 32px; 
+                        border-radius: 50%; 
+                        display:flex; align-items:center; justify-content:center;
+                        margin-right: 10px; cursor: pointer;
+                        font-size: 1.2rem;
+                    ">
+                        ✓
+                    </button>
+                    ` : ''}
+
                     <div class="mini-timer" ${isHost ? 'style="cursor:pointer" title="Click to Change Duration"' : ''}>
                         ${roomData.timerDuration || 25}:00
                     </div>
@@ -180,7 +194,8 @@ export async function loadRoomPage(roomData) {
             </div>
 
             <div class="room-floor" id="avatarStage">
-                <div id="taskLayer"></div> </div>
+                <div id="taskLayer"></div> 
+            </div>
 
             <div class="room-controls">
                 <button id="btnStartTimer" class="btn primary">Start</button>
@@ -226,7 +241,6 @@ export async function loadRoomPage(roomData) {
     const btnReset = document.getElementById('btnResetTimer');
     if (btnReset) {
         btnReset.onclick = async () => {
-            // OLD: if(!confirm("Reset timer to 00:00?")) return;
             const yes = await showConfirm("Reset Timer", "Reset timer?");
             if(!yes) return;
 
@@ -237,12 +251,29 @@ export async function loadRoomPage(roomData) {
         };
     }
 
+    // Finish Session Button (MOVED HERE - Was outside causing bugs)
+    const btnFinish = document.getElementById('btnFinishSession');
+    if (btnFinish) {
+        btnFinish.onclick = async () => {
+            const yes = await showConfirm("Finish Session?", "Mark all tasks done and complete the timer?");
+            if (!yes) return;
+
+            try {
+                await fetch(`/api/rooms/${roomData.roomId}/timer/finish`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) {
+                console.error("Finish session failed", e);
+            }
+        };
+    }
+
     // Edit Timer Duration
     if (isHost) {
         const timerDisplay = document.querySelector('.mini-timer');
         if(timerDisplay) {
             timerDisplay.onclick = async () => {
-                // OLD: prompt(...)
                 const newTime = await showPrompt("Change Timer", "Set timer duration (minutes):", roomData.timerDuration || 25);
 
                 if (newTime && !isNaN(newTime)) {
@@ -263,7 +294,6 @@ export async function loadRoomPage(roomData) {
     const btnAdd = document.getElementById('btnAddTask');
     if (btnAdd) {
         btnAdd.onclick = async () => {
-
             const text = await showPrompt("New Task", "What is your task?");
             if (text && text.trim() !== "") {
                 socket.emit('create_task', { roomId: roomData.roomId, userId: myUser.id, text: text.trim() });
@@ -282,7 +312,6 @@ export async function loadRoomPage(roomData) {
 
     // Expose Kick Function globally
     window.kickUser = async (targetUserId) => {
-        // OLD: if(!confirm("Are you sure you want to remove this user?")) return;
         const yes = await showConfirm("Kick User", "Are you sure you want to remove this user?");
         if(!yes) return;
 
@@ -299,7 +328,7 @@ export async function loadRoomPage(roomData) {
 
 // --- HELPER FUNCTIONS ---
 
-/** Render Users in Left Panel */
+/** Render Users in Left Panel (FIXED DUPLICATE CODE) */
 function renderUserList(users, hostId, myId) {
     const container = document.getElementById('userListContainer');
     if (!container) return;
@@ -308,51 +337,13 @@ function renderUserList(users, hostId, myId) {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
-<<<<<<< HEAD
-
-        // Check if I can kick this person (Host only, not myself)
-        const canKick = (myId === hostId) && !isMe;
-
-        // Get points (default to 0 if undefined)
-        const points = u.points || 0;
-
-        return `
-            <div class="user-list-item">
-                <div class="ul-avatar" style="background-image: url('${img}')"></div>
-                <div class="ul-info">
-                    <div class="ul-name">
-                        ${u.username} ${isMe ? '(You)' : ''}
-                        <span class="points-badge">⭐ ${points}</span>
-                    </div>
-                    <div class="ul-role">
-                        ${isTargetHost ? '👑 Host' : 'Participant'}
-                    </div>
-                    <div class="ul-role">
-                        ${'Status: aktiv'}
-                    </div>
-                </div>
-                ${canKick ? `
-                    <div class="btn-kick" 
-                         title="Remove User" 
-                         onclick="kickUser('${u.userId}')">
-                         ✕
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }).join('');container.innerHTML = users.map(u => {
-        const isMe = u.userId === myId;
-        const isTargetHost = u.userId === hostId;
-        const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
-=======
->>>>>>> main
         const canKick = (myId === hostId) && !isMe;
         const points = u.points || 0;
 
         // Status Logic
-        // If 'online' is undefined (old rooms), treat as true
         const isOnline = u.online !== false;
         const statusColor = isOnline ? '#2ecc71' : '#95a5a6'; // Green vs Grey
+        const statusTitle = isOnline ? 'Online' : 'Offline / Timed Out';
         const opacity = isOnline ? '1' : '0.5';
 
         return `
@@ -367,7 +358,7 @@ function renderUserList(users, hostId, myId) {
                             border-radius:50%; 
                             background-color:${statusColor};
                             margin-right:6px;
-                        " title="${isOnline ? 'Online' : 'Offline'}"></span>
+                        " title="${statusTitle}"></span>
 
                         <span class="ul-name" title="${u.username}">
                             ${u.username} ${isMe ? '(You)' : ''}
@@ -377,9 +368,6 @@ function renderUserList(users, hostId, myId) {
                     
                     <div class="ul-role">
                         ${isTargetHost ? '👑 Host' : 'Participant'}
-                    </div>
-                    <div class="ul-role">
-                        ${'Status: aktiv'}
                     </div>
                 </div>
 
@@ -462,7 +450,6 @@ function playSparkle(taskId) {
             const s = document.createElement('div');
             s.textContent = '✨';
             s.className = 'sparkle';
-            // Random position around the task
             s.style.left = (rect.left + Math.random() * rect.width) + 'px';
             s.style.top = (rect.top + Math.random() * rect.height) + 'px';
             document.body.appendChild(s);
@@ -475,10 +462,7 @@ function playSparkle(taskId) {
 function renderAvatars(users, roomId, myUserId) {
     const stage = document.getElementById('avatarStage');
     if(!stage) return;
-    // We only want to clear avatars, NOT the task layer.
-    // But since renderAvatars usually runs alongside renderTasks,
-    // we can clear safely IF we re-append taskLayer or structure differently.
-    // BETTER: Only remove .avatar-char elements to avoid killing the task layer
+
     stage.querySelectorAll('.avatar-char').forEach(e => e.remove());
 
     users.forEach(u => {
@@ -667,6 +651,7 @@ function showReactionOnAvatar(userId, emoji) {
     avatarEl.appendChild(floatEl);
     setTimeout(() => floatEl.remove(), 1500);
 }
+
 async function applyRoomTheme(themeId) {
     const token = localStorage.getItem('token');
     let items = [];
@@ -677,7 +662,7 @@ async function applyRoomTheme(themeId) {
     } catch(e) { console.error("Could not load theme details", e); }
 
     const theme = items.find(i => i.id === themeId);
-    
+
     // Default Fallbacks
     const bgImage = theme?.image || "https://plus.unsplash.com/premium_photo-1661875977781-adbb21036841?w=1600&fit=crop";
     const bgGradient = theme?.gradient || "linear-gradient(160deg, #0b1020, #0f1b3d)";
@@ -687,12 +672,7 @@ async function applyRoomTheme(themeId) {
     const roomScene = document.querySelector('.room-scene');
     const timerEl = document.querySelector('.mini-timer');
 
-    // Set Background Image
     if(roomScene) roomScene.style.backgroundImage = `url('${bgImage}')`;
-    
-    // Set Body Gradient (The atmosphere behind the image)
     document.body.style.background = bgGradient;
-
-    // Set Timer Color
     if(timerEl) timerEl.style.color = timerColor;
 }

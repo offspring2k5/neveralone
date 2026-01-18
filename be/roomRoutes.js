@@ -91,6 +91,15 @@ router.post('/:roomId/timer/reset', requireAuth, async (req, res) => {
         res.json({ success: true, ...room.toJSON() });
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
+router.post('/:roomId/timer/finish', requireAuth, async (req, res) => {
+    try {
+        const room = await RoomManager.finishSession(req.params.roomId, req.user.id);
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
+        res.json({ success: true, ...room.toJSON() });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
 
 router.put('/:roomId/settings', requireAuth, async (req, res) => {
     try {

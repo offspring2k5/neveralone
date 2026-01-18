@@ -282,6 +282,48 @@ class RoomManager {
 
         return room;
     }
+    async finishSession(roomId, requesterId) {
+        const roomDataString = await client.get(keyRoom(roomId));
+        if (!roomDataString) throw new Error("Room not found");
+        const room = Room.fromJSON(JSON.parse(roomDataString));
+
+        if (room._host.userId !== requesterId) throw new Error("Only host can finish the session");
+
+        const tasks = room.completeAllTasks();
+        for (const task of tasks) {
+
+            await usersStore.changeUserPoints(task.ownerId, POINTS.TASK_COMPLETE);
+
+            room.updateParticipantScore(task.ownerId, POINTS.TASK_COMPLETE);
+        }
+        const durationMs = room._timerDuration * 60 * 1000;
+        const isAlreadyDone = room._elapsedTime >= durationMs;
+
+        if (!isAlreadyDone) {
+            room.finishTimer();
+            const users = room.getActiveParticipants();
+            for (const p of users) {
+                await usersStore.changeUserPoints(p.userId, POINTS.TIMER_COMPLETE);
+                room.updateParticipantScore(p.userId, POINTS.TIMER_COMPLETE);
+            }
+        }
+
+        if (this.timerTimeouts.has(roomId)) {
+            clearTimeout(this.timerTimeouts.get(roomId));
+            this.timerTimeouts.delete(roomId);
+        }
+
+
+        await client.set(keyRoom(roomId), JSON.stringify(room.toJSON()), { EX: 86400 });
+
+        if (this.io) {
+            this.io.to(roomId).emit('room_update', room.toJSON());
+
+            this.io.to(roomId).emit('toast', { type: 'ok', msg: `Session Complete! All tasks done! 🏆` });
+        }
+
+        return room;
+    }
 }
 
 module.exports = new RoomManager();

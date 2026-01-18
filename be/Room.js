@@ -160,6 +160,25 @@ class Room {
 
         return task.ownerId; // Return owner so Manager can award points
     }
+    completeAllTasks() {
+        const tasks = [...this._tasks]; // Copy the array
+        this._tasks = []; // Clear internal list
+        return tasks; // Return the cleared tasks so we can award points
+    }
+    finishTimer() {
+        if (this._timerRunning) {
+            const currentSegment = Date.now() - this._timerStartedAt;
+            this._elapsedTime += currentSegment;
+        }
+        // Force elapsed to equal duration (effectively 0 remaining)
+        // Convert minutes to ms
+        const totalDurationMs = this._timerDuration * 60 * 1000;
+        this._elapsedTime = totalDurationMs;
+
+        this._timerRunning = false;
+        this._timerStartedAt = null;
+    }
+
     setParticipantOnline(userId, isOnline) {
         const participant = this._activeParticipants.find(u => u.userId === userId);
         if (participant) {
