@@ -60,6 +60,7 @@ router.post('/join', requireAuth, async (req, res) => {
         };
 
         const room = await RoomManager.joinRoom(participantUser, code, task);
+        req.app.get('io').to(room.getRoomId()).emit('room_update', room.toJSON());
         res.json({ success: true, ...room.toJSON() });
     } catch (e) {
         res.status(404).json({ error: e.message });
