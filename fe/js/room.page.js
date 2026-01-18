@@ -308,7 +308,7 @@ function renderUserList(users, hostId, myId) {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
-<<<<<<< HEAD
+
 
         // Check if I can kick this person (Host only, not myself)
         const canKick = (myId === hostId) && !isMe;
@@ -344,8 +344,7 @@ function renderUserList(users, hostId, myId) {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
-=======
->>>>>>> main
+
         const canKick = (myId === hostId) && !isMe;
         const points = u.points || 0;
 
