@@ -308,6 +308,7 @@ function renderUserList(users, hostId, myId) {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
+<<<<<<< HEAD
 
         // Check if I can kick this person (Host only, not myself)
         const canKick = (myId === hostId) && !isMe;
@@ -343,15 +344,31 @@ function renderUserList(users, hostId, myId) {
         const isMe = u.userId === myId;
         const isTargetHost = u.userId === hostId;
         const img = u.avatarUrl || `https://ui-avatars.com/api/?background=random&name=${u.username}`;
+=======
+>>>>>>> main
         const canKick = (myId === hostId) && !isMe;
         const points = u.points || 0;
 
+        // Status Logic
+        // If 'online' is undefined (old rooms), treat as true
+        const isOnline = u.online !== false;
+        const statusColor = isOnline ? '#2ecc71' : '#95a5a6'; // Green vs Grey
+        const opacity = isOnline ? '1' : '0.5';
+
         return `
-            <div class="user-list-item">
+            <div class="user-list-item" style="opacity: ${opacity}">
                 <div class="ul-avatar" style="background-image: url('${img}')"></div>
                 
                 <div class="ul-info">
                     <div class="ul-name-row">
+                        <span style="
+                            display:inline-block; 
+                            width:8px; height:8px; 
+                            border-radius:50%; 
+                            background-color:${statusColor};
+                            margin-right:6px;
+                        " title="${isOnline ? 'Online' : 'Offline'}"></span>
+
                         <span class="ul-name" title="${u.username}">
                             ${u.username} ${isMe ? '(You)' : ''}
                         </span>
