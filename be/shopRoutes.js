@@ -48,7 +48,7 @@ router.post('/buy', requireAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// --- NEW: Cheat Endpoint ---
+// Cheat Endpoint
 router.post('/cheat', requireAuth, async (req, res) => {
     try {
         const { code } = req.body;

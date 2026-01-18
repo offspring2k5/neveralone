@@ -1,8 +1,8 @@
 /**
  * fe/api.js
- * Zentraler HTTP-Wrapper für JSON Requests.
- * - Einheitliches Error-Handling (inkl. HTTP Status)
- * - Kein Auth-Wissen (Token etc.) -> gehört in auth.js
+ * Central HTTP wrapper for JSON requests.
+ * - Unified error handling (incl. HTTP status codes)
+ * - No authentication logic (tokens, etc.) -> belongs in auth.js
  */
 
 function makeHttpError(res, data) {

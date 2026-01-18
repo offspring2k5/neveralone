@@ -81,7 +81,7 @@ class Room {
         }
     }
 
-    // --- NEW: Helper to update score in the room list immediately ---
+    // Helper to update score in the room list immediately
     updateParticipantScore(userId, delta) {
         const participant = this._activeParticipants.find(u => u.userId === userId);
         if (participant) {
@@ -146,7 +146,7 @@ class Room {
         }
     }
 
-    // --- UPDATED: Return owner ID ---
+    // Return owner ID
     completeTask(taskId) {
         const task = this._tasks.find(t => t.id === taskId);
         if (!task) return null;

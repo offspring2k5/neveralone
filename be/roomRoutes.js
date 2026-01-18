@@ -19,7 +19,7 @@ router.post('/create', requireAuth, async (req, res) => {
         // 2. Prepare Host Object
         const hostUser = {
             userId: fullUser.id,
-            // FIX: Map 'displayName' (from DB) to 'username' (for Room)
+            // Map 'displayName' (from DB) to 'username' (for Room)
             username: fullUser.displayName,
             avatarUrl: fullUser.avatarUrl,
             points: fullUser.points || 0
@@ -53,7 +53,7 @@ router.post('/join', requireAuth, async (req, res) => {
         // 2. Prepare Participant Object
         const participantUser = {
             userId: fullUser.id,
-            // FIX: Map 'displayName' (from DB) to 'username' (for Room)
+            // Map 'displayName' (from DB) to 'username' (for Room)
             username: fullUser.displayName,
             avatarUrl: fullUser.avatarUrl,
             points: fullUser.points || 0
@@ -66,7 +66,7 @@ router.post('/join', requireAuth, async (req, res) => {
     }
 });
 
-// Timer Routes (Unchanged)
+// Timer Routes
 router.post('/:roomId/timer/start', requireAuth, async (req, res) => {
     try {
         const room = await RoomManager.startTimer(req.params.roomId, req.user.id);

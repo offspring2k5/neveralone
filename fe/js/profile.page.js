@@ -155,7 +155,7 @@ async function loadProfile() {
 function initEmojiKitchen(emojiList = []) {
     if(!emojiGrid) return;
 
-    // 1. Render Grid
+    // A. Render Grid
     emojiGrid.innerHTML = "";
     emojiList.forEach(emoji => {
         const btn = document.createElement("div");
@@ -165,11 +165,11 @@ function initEmojiKitchen(emojiList = []) {
         emojiGrid.appendChild(btn);
     });
 
-    // 2. Slot Click Handlers
+    // B. Slot Click Handlers
     if(slot1) slot1.onclick = () => setActiveSlot(1);
     if(slot2) slot2.onclick = () => setActiveSlot(2);
 
-    // 3. Initial State
+    // C. Initial State
     updateKitchenUI();
 }
 
@@ -317,7 +317,7 @@ saveMashupBtn?.addEventListener("click", async () => {
     saveMashupBtn.disabled = true;
 
     try {
-        // --- NEW: Send emojis to backend ---
+        // Send emojis to backend
         const res = await postJson(
             "/api/auth/avatar-mashup",
             { left: selection.left, right: selection.right },

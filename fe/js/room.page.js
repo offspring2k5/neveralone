@@ -22,8 +22,6 @@ export async function loadRoomPage(roomData) {
         console.error("Could not save last room", e);
     }
 
-
-
     const app = document.getElementById('app');
     let myUser = {};
     try {
@@ -229,7 +227,7 @@ export async function loadRoomPage(roomData) {
     if (btnReset) {
         btnReset.onclick = async () => {
             // OLD: if(!confirm("Reset timer to 00:00?")) return;
-            const yes = await showConfirm("Reset Timer", "Reset timer to 00:00?");
+            const yes = await showConfirm("Reset Timer", "Reset timer?");
             if(!yes) return;
 
             await fetch(`/api/rooms/${roomData.roomId}/timer/reset`, {
@@ -328,6 +326,9 @@ function renderUserList(users, hostId, myId) {
                     <div class="ul-role">
                         ${isTargetHost ? '👑 Host' : 'Participant'}
                     </div>
+                    <div class="ul-role">
+                        ${'Status: aktiv'}
+                    </div>
                 </div>
                 ${canKick ? `
                     <div class="btn-kick" 
@@ -359,6 +360,9 @@ function renderUserList(users, hostId, myId) {
                     
                     <div class="ul-role">
                         ${isTargetHost ? '👑 Host' : 'Participant'}
+                    </div>
+                    <div class="ul-role">
+                        ${'Status: aktiv'}
                     </div>
                 </div>
 
@@ -647,7 +651,6 @@ function showReactionOnAvatar(userId, emoji) {
     setTimeout(() => floatEl.remove(), 1500);
 }
 async function applyRoomTheme(themeId) {
-    // Note: In a real app, you might want to cache this response
     const token = localStorage.getItem('token');
     let items = [];
     try {

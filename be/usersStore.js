@@ -41,7 +41,7 @@ async function createUser(user) {
 
     user.points = 0;
 
-    // --- NEW: Default Inventory ---
+    // Default Inventory
     // Everyone owns the default theme and the basic smiley pack
     user.inventory = ['theme_default', 'pack_basic'];
 
@@ -92,7 +92,7 @@ async function addItemToInventory(id, itemId) {
     }
     return user;
 }
-// Note: readDb/writeDb are removed as they are not efficient for Redis
+// readDb/writeDb are removed as they are not efficient for Redis
 module.exports = {
     findUserByEmail,
     findUserById,

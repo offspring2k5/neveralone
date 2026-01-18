@@ -112,7 +112,7 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 });
 
-// --- NEW: Update Profile (Name) ---
+// Update Profile (Name)
 router.patch("/profile", requireAuth, async (req, res) => {
     try {
         const { displayName } = req.body;
@@ -128,7 +128,7 @@ router.patch("/profile", requireAuth, async (req, res) => {
     }
 });
 
-// --- NEW: Upload Avatar ---
+// Upload Avatar
 router.post("/avatar", requireAuth, upload.single("avatar"), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -146,12 +146,13 @@ router.post("/avatar", requireAuth, upload.single("avatar"), async (req, res) =>
         res.status(500).json({ error: e.message });
     }
 });
+
 router.post("/avatar-mashup", requireAuth, async (req, res) => {
     try {
         const { left, right } = req.body;
         if (!left || !right) return res.status(400).json({ error: "Missing emojis" });
 
-        // --- FIX: Dynamic Import for ES Module ---
+        // FIX: Dynamic Import for ES Module
         // We import the library here because it doesn't support 'require' at the top level
         const emojiMixerModule = await import('emoji-mixer');
         const getEmojiMixUrl = emojiMixerModule.default;

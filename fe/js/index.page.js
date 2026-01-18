@@ -1,7 +1,7 @@
 /**
  * fe/index.page.js
- * Login/Register UI (FR4/FR5).
- * - Nur UI-Logik (kein fetch hier -> auth.js)
+ * Login/Register UI
+ * - UI logic only (no fetch here -> auth.js)
  */
 
 import { login, register } from "./auth.js";
@@ -26,9 +26,7 @@ function clearMsg(el) {
     el.className = "toast";
 }
 
-/**
- * Hidden forms müssen disabled werden, sonst blockieren required Felder das Submit.
- */
+/* Hidden forms must be disabled, otherwise required fields will block form submission */
 function setEnabled(form, enabled) {
     form.querySelectorAll("input, button, select, textarea").forEach((el) => {
         el.disabled = !enabled;
@@ -56,9 +54,7 @@ function switchTab(mode) {
 tabLogin.addEventListener("click", () => switchTab("login"));
 tabRegister.addEventListener("click", () => switchTab("register"));
 
-/**
- * FR5: Login
- */
+/* Login */
 loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     clearMsg(loginMsg);
@@ -76,9 +72,7 @@ loginForm.addEventListener("submit", async (e) => {
     }
 });
 
-/**
- * FR4: Register
- */
+/* FR4: Register */
 registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     clearMsg(registerMsg);
@@ -98,13 +92,13 @@ registerForm.addEventListener("submit", async (e) => {
 
         setMsg(registerMsg, "ok", "Account erstellt. Du kannst dich jetzt einloggen.");
 
-        // Inputs leeren (wie gewünscht)
+        // empty input
         document.getElementById("userName").value = "";
         document.getElementById("regEmail").value = "";
         document.getElementById("regPw").value = "";
         document.getElementById("regPw2").value = "";
 
-        // Direkt zu Login zurück
+        // directly back to login
         switchTab("login");
         document.getElementById("logEmail").value = email;
         document.getElementById("logPw").value = "";

@@ -31,7 +31,7 @@ const SHOP_ITEMS = [
         tint: '#d4a7ff', // Neon Purple
         gradient: 'radial-gradient(circle at 80% 20%, rgba(189, 116, 255, 0.2), transparent 50%), linear-gradient(180deg, #1a0b2e 0%, #090312 100%)'
     },
-    // New Themes (Example)
+    // New Themes
     { 
         id: 'theme_aquarium', 
         type: 'theme', 

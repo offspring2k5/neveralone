@@ -53,7 +53,7 @@ class RoomManager {
         return room;
     }
 
-    // --- UPDATED TIMER LOGIC (Points) ---
+    // TIMER LOGIC (Points)
     async startTimer(roomId, userId) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) throw new Error("Room not found");
@@ -77,7 +77,7 @@ class RoomManager {
         return room;
     }
 
-    // Internal: Triggered when timer naturally finishes
+    // Triggered when timer naturally finishes
     async _handleTimerComplete(roomId) {
         try {
             const roomDataString = await client.get(keyRoom(roomId));
@@ -102,7 +102,7 @@ class RoomManager {
             // Notify Frontend
             if (this.io) {
                 this.io.to(roomId).emit('room_update', room.toJSON());
-                // Optional: Send a toast message
+                // Send a toast message
                 this.io.to(roomId).emit('toast', { type: 'ok', msg: `Timer finished! +${POINTS.TIMER_COMPLETE} Points!` });
             }
 
@@ -171,7 +171,7 @@ class RoomManager {
         return room;
     }
 
-    // --- UPDATED: Penalize Early Leave ---
+    // Penalize Early Leave
     async removeUser(roomId, userId) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) return null;
@@ -225,7 +225,7 @@ class RoomManager {
         return room;
     }
 
-    // --- UPDATED: Award Points for Task ---
+    // Award Points for Task
     async completeTask(roomId, taskId) {
         const roomDataString = await client.get(keyRoom(roomId));
         if (!roomDataString) return null;

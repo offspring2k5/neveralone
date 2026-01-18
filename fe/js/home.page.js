@@ -304,7 +304,7 @@ async function bindEventsAndLoadUser() {
         };
     }
 
-    // --- GLOBAL SHOP FUNCTIONS ---
+    // GLOBAL SHOP FUNCTIONS
     window.buyItem = async (itemId) => {
         const confirmed = await showConfirm("Confirm Purchase", "Are you sure you want to buy this item?");
         if (!confirmed) return;

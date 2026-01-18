@@ -1,8 +1,8 @@
 /**
  * fe/auth.js
- * Zuständig für:
- * - Token persistieren (localStorage)
- * - Auth Calls (FR4/FR5) + /me
+ * Responsible for:
+ * - Persisting the token (localStorage)
+ * - Authentication calls + /me
  */
 
 import { postJson, getJson } from "./api.js";
@@ -13,28 +13,19 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
-/**
- * FR4: Registrierung
- * Erwartet: email + password + displayName
- */
+/* Registration - Expects: email + password + displayName */
 export async function register(email, password, displayName) {
     return postJson("/api/auth/register", { email, password, displayName });
 }
 
-/**
- * FR5: Login
- * Speichert token (falls vorhanden) in localStorage.
- */
+/* Login - stores the token (if present) in localStorage. */
 export async function login(email, password) {
     const data = await postJson("/api/auth/login", { email, password });
     if (data.token) setToken(data.token);
     return data;
 }
 
-/**
- * Returns: { ok: true, user: ... }
- * Wirft Error mit err.status wenn HTTP != 2xx
- */
+/* Returns: { ok: true, user: ... } - throws an error with err.status if HTTP status != 2xx */
 export async function me() {
     const token = getToken();
     if (!token) {
